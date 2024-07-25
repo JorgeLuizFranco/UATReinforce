@@ -1,0 +1,3 @@
+[submodule "uatlib"]
+	path = uatlib
+	url = https://github.com/drone-comp/uatlib.git
