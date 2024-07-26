@@ -3,6 +3,8 @@
 
 #include <random>
 
+#include "naive.hpp"
+
 struct Airspace {
   auto random_mission(int) const -> uat::mission_t { return {}; }
   auto iterate(uat::region_fn) const -> void {}
@@ -27,7 +29,9 @@ int main(int argc, char *argv[])
     return app.exit(e);
   }
 
-  auto factory = [](uint_t, const airspace&, int) -> std::vector<agent> {
+  auto factory = [](uint_t t, const airspace& space, int) -> std::vector<agent> {
+    if (t == 0)
+      return {Naive(space, 42, nullptr, nullptr)};
     return {};
   };
 
