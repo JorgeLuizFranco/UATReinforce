@@ -7,7 +7,8 @@ add_executable(uatsim
   src/main.cpp
   src/airspace3d.cpp
   src/astar.cpp
-  src/naive.cpp)
+  src/naive.cpp
+  src/smart.cpp)
 
 target_include_directories(uatsim PRIVATE include)
 target_link_libraries(uatsim PRIVATE uat cool jules fmt CLI11::CLI11)

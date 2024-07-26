@@ -1,11 +1,13 @@
 #include "airspace3d.hpp"
 #include "naive.hpp"
+#include "smart.hpp"
 
 #include <cstdio>
 #include <uat/simulation.hpp>
 #include <cool/indices.hpp>
 #include <cool/ccreate.hpp>
 #include <random>
+#include <fmt/core.h>
 
 #include <CLI/CLI.hpp>
 
@@ -72,7 +74,11 @@ int main(int argc, char *argv[])
     std::mt19937 rng(seed);
 
     std::vector<agent> result;
-    result.reserve(opts.n_agents);
+    result.reserve(opts.n_agents + (t == 0 ? 1 : 0));
+
+    if (t == 0)
+      result.push_back(Smart(space, 42));
+
     for ([[maybe_unused]] const auto _ : cool::indices(opts.n_agents))
       result.push_back(Naive(space, rng(), afile.get(), pfile.get()));
 
@@ -84,6 +90,12 @@ int main(int argc, char *argv[])
     /* .stop_criteria = */ uat::stop_criteria::no_agents_t{},
     // .trade_callback = TODO;
     nullptr,
+    // Example of trade callback
+    // [](uat::trade_info_t info) {
+    //   fmt::print(stderr,
+    //       "Trade: {} -> {} at {} at time {} for ${}\n",
+    //       info.from, info.to, info.location, info.time, info.value);
+    // },
     // .status_callback = TODO;
     nullptr,
   };
