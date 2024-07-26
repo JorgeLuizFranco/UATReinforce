@@ -17,6 +17,8 @@ public:
 
   auto dimensions() const -> std::array<uint_t, 3u>;
 
+  auto iterate(uat::region_fn) const -> void { /* TODO */ }
+
 private:
   std::array<uint_t, 3> dim_;
 };
