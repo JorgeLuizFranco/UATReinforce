@@ -31,9 +31,8 @@ auto Smart::on_sold(const uat::region&, uat::uint_t, uat::value_t v) -> void
   spent -= v;
 }
 
-auto Smart::stop(uat::uint_t id, uat::uint_t t) -> bool
+auto Smart::stop(uat::uint_t t, int) -> bool
 {
-  fmt::print(stderr, "Smart agent (#{}) has stopped at time {}\n",
-      id, t);
+  fmt::print(stderr, "Smart agent has stopped at time {}\n", t);
   return true;
 }

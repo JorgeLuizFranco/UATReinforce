@@ -17,7 +17,7 @@ public:
 
   auto on_sold(const uat::region&, uat::uint_t, uat::value_t) -> void;
 
-  auto stop(uat::uint_t, uat::uint_t) -> bool;
+  auto stop(uat::uint_t, int) -> bool;
 
 private:
   uat::mission_t current_mission;
