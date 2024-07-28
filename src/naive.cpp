@@ -18,7 +18,7 @@
 
 using namespace uat;
 
-Naive::Naive(const airspace& space, int seed, std::FILE* agent_fp, std::FILE* path_fp) :
+Naive::Naive(const Airspace3D& space, int seed, std::FILE* agent_fp, std::FILE* path_fp) :
   agent_fp_{agent_fp}, path_fp_{path_fp}
 {
   std::mt19937 rng(seed);
@@ -136,7 +136,7 @@ auto Naive::stop(uint_t id, uint_t t) -> bool
   {
     fmt::print(agent_fp_, "{},{},{},{},{},{},{},{},{},{}\n",
         id, t + 1 - niter_, niter_, congestion_param_,
-        mission_.from, mission_.to,
+        uat::region(mission_.from), uat::region(mission_.to),
         fundamental_, sigma_,
         mission_.length(), keep_.size() - 1.0);
   }

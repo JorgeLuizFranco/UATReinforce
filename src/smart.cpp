@@ -1,9 +1,8 @@
 #include "smart.hpp"
 
 #include <fmt/core.h>
-#include <uat/airspace.hpp>
 
-Smart::Smart(const uat::airspace& airspace, int seed)
+Smart::Smart(const Airspace3D& airspace, int seed)
   : current_mission(airspace.random_mission(seed))
 {
 }

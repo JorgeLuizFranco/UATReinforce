@@ -1,13 +1,14 @@
 #pragma once
 
 #include <uat/type.hpp>
-#include <uat/airspace.hpp>
 #include <uat/agent.hpp>
+
+#include "airspace3d.hpp"
 
 class Smart
 {
 public:
-  Smart(const uat::airspace&, int);
+  Smart(const Airspace3D&, int);
 
   auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void;
 
@@ -20,7 +21,7 @@ public:
   auto stop(uat::uint_t, int) -> bool;
 
 private:
-  uat::mission_t current_mission;
+  mission_t current_mission;
   uat::value_t spent = 0;
 };
 

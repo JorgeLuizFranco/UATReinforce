@@ -1,5 +1,6 @@
 #include "astar.hpp"
 
+#include <cassert>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -8,8 +9,9 @@
 #include <variant>
 
 #include <uat/permit.hpp>
-#include <uat/airspace.hpp>
 #include <cool/compose.hpp>
+
+#include "airspace3d.hpp"
 
 using namespace uat;
 
@@ -59,7 +61,7 @@ private:
   Cmp cmp_;
 };
 
-auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t bid,
+auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t bid,
            value_t icost, value_t turn_cost, value_t climb_cost,
            value_t maxcost,
            uat::permit_public_status_fn& status, int seed) -> std::vector<permit>
@@ -104,7 +106,7 @@ auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t b
   // tie-break trick: https://theory.stanford.edu/~amitp/GameProgramming/Heuristics.html#breaking-ties
   const auto trick = 1.0 + icost / from.distance(to);
 
-  const auto h = [&](const region& s, uint_t t) -> value_t {
+  const auto h = [&](const Slot3d& s, uint_t t) -> value_t {
     const auto hash = std::hash<permit>{}({s, t}) % 1000;
     const auto yatrick = 0.001 * hash / 1000.0;
 
@@ -143,10 +145,10 @@ auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t b
       return;
 
     const auto tentative = score[current].g + d;
-    const auto hnext = h(next.location(), next.time());
+    const auto hnext = h(next.location().downcast<Slot3d>(), next.time());
 
     if (tentative < score[next].g && tentative + hnext < maxcost) {
-      came_from[next] = current;
+      came_from.insert_or_assign(next, current);
       score[next] = {tentative, tentative + hnext};
 
       open.push(std::move(next));
@@ -172,12 +174,14 @@ auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t b
     // XXX: should we keep forbiding staying still?
     // try_path(current, {current.location(), current.time() + 1});
 
-    auto nei = current.location().adjacent_regions();
+    const auto& current_location = current.location().downcast<Slot3d>();
+    auto nei = current_location.adjacent_regions();
     std::shuffle(nei.begin(), nei.end(), gen);
     for (auto nregion : nei)
     {
-      const auto turn = current.location().turn(current.location() == from ? from : came_from[current].location(), nregion);
-      const auto climb = current.location().climb(nregion);
+      const auto& before = current.location() == from ? from : came_from.find(current)->second.location().downcast<Slot3d>();
+      const auto turn = current_location.turn(before, nregion);
+      const auto climb = current_location.climb(nregion);
       try_path(current, {std::move(nregion), current.time() + 1}, turn, climb);
     }
   }

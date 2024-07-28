@@ -2,17 +2,18 @@
 
 #include <limits>
 #include <uat/type.hpp>
-#include <uat/airspace.hpp>
 #include <uat/agent.hpp>
 
 #include <unordered_set>
 #include <cstdio>
 
+#include "airspace3d.hpp"
+
 // (First-price sealed-bid auction, same as the paper)
 class Naive
 {
 public:
-  Naive(const uat::airspace&, int, std::FILE*, std::FILE*);
+  Naive(const Airspace3D&, int, std::FILE*, std::FILE*);
 
   auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void;
 
@@ -23,7 +24,7 @@ public:
   auto stop(uat::uint_t, uat::uint_t) -> bool;
 
 private:
-  uat::mission_t mission_;
+  mission_t mission_;
 
   uat::value_t fundamental_;
   uat::value_t sigma_;

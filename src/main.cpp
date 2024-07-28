@@ -67,7 +67,9 @@ int main(int argc, char *argv[])
   if (tfile)
     fmt::print(tfile.get(), "TransactionTime,From,To,X,Y,Z,Time,Value\n");
 
-  auto factory = [&](uint_t t, const airspace& space, int seed) -> std::vector<agent> {
+  Airspace3D space{opts.dimensions};
+
+  auto factory = [&](uint_t t, int seed) -> std::vector<agent> {
     if (t >= opts.max_time)
       return {};
 
@@ -100,7 +102,7 @@ int main(int argc, char *argv[])
     nullptr,
   };
 
-  simulate(factory, Airspace3D{opts.dimensions},
+  simulate(factory,
       opts.seed < 0 ? std::random_device{}() : opts.seed,
       sim_opts);
 }

@@ -3,6 +3,7 @@
 #include <cool/indices.hpp>
 #include <fmt/core.h>
 
+#include <cassert>
 #include <algorithm>
 #include <iterator>
 #include <random>
@@ -16,7 +17,7 @@ Airspace3D::Airspace3D(std::array<uint_t, 3> dim) : dim_{dim}
   assert(dim_[2] > 1);
 }
 
-auto Airspace3D::random_mission(int seed) const -> uat::mission_t
+auto Airspace3D::random_mission(int seed) const -> mission_t
 {
   std::mt19937 g(seed);
 
@@ -38,9 +39,9 @@ auto Airspace3D::random_mission(int seed) const -> uat::mission_t
 
 auto Airspace3D::dimensions() const -> std::array<uint_t, 3u> { return dim_; }
 
-auto Slot3d::adjacent_regions() const -> std::vector<uat::region>
+auto Slot3d::adjacent_regions() const -> std::vector<Slot3d>
 {
-  std::vector<uat::region> nei;
+  std::vector<Slot3d> nei;
   nei.reserve(6);
 
   if (pos[0] > 0) nei.push_back(Slot3d{{pos[0] - 1, pos[1], pos[2]}, dim});
@@ -73,10 +74,15 @@ auto Slot3d::distance(const Slot3d& other) const -> uint_t
     diff(pos[2], other.pos[2]);
 }
 
-auto Slot3d::shortest_path(const Slot3d& to, int seed) const -> std::vector<uat::region>
+auto Slot3d::heuristic_distance(const Slot3d& other) const -> double
+{
+  return static_cast<double>(distance(other));
+}
+
+auto Slot3d::shortest_path(const Slot3d& to, int seed) const -> std::vector<Slot3d>
 {
   // prefers L instead of diagonal
-  std::vector<uat::region> result;
+  std::vector<Slot3d> result;
   auto current = *this;
 
   result.push_back(current);
