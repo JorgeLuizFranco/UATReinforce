@@ -16,6 +16,7 @@ struct Slot3d
   auto hash() const -> std::size_t;
 
   auto operator==(const Slot3d&) const -> bool;
+  auto operator!=(const Slot3d& other) const -> bool { return !(*this == other); }
 
   auto distance(const Slot3d&) const -> uint_t;
 

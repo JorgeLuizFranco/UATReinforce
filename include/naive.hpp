@@ -32,7 +32,7 @@ private:
   uat::uint_t congestion_param_ = 1;
   uat::uint_t last_time_ = std::numeric_limits<uat::uint_t>::max();
 
-  std::unordered_set<uat::permit> keep_, onsale_;
+  std::unordered_set<uat::permit<Slot3d>> keep_, onsale_;
 
   uat::uint_t niter_ = 0;
 

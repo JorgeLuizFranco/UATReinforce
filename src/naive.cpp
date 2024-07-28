@@ -41,7 +41,7 @@ auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn st
 
   onsale_ = std::exchange(keep_, {});
   const auto t_heuristic =
-    jules::max(onsale_ | ranges::views::transform([](const permit& s) { return s.time(); }));
+    jules::max(onsale_ | ranges::views::transform([](const permit<Slot3d>& s) { return s.time(); }));
 
   // check previous path
   if (last_time_ != std::numeric_limits<uat::uint_t>::max())
@@ -96,7 +96,7 @@ auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn st
     std::visit(cool::compose{
       [](uat::permit_public_status::unavailable) { assert(false); },
       [&, region = region, t = t](uat::permit_public_status::owned) {
-        onsale_.erase(uat::permit(region, t));
+        onsale_.erase(uat::permit<Slot3d>(region, t));
         keep_.emplace(std::move(region), t);
       },
       [&, region = region, t = t](uat::permit_public_status::available) {
@@ -117,7 +117,7 @@ auto Naive::ask_phase(uint_t, uat::ask_fn ask, uat::permit_public_status_fn , in
 
 auto Naive::on_bought(const region& s, uint_t t, value_t) -> void
 {
-  keep_.insert({s, t});
+  keep_.insert({s.downcast<Slot3d>(), t});
 }
 
 auto Naive::stop(uint_t id, uint_t t) -> bool
@@ -129,7 +129,7 @@ auto Naive::stop(uint_t id, uint_t t) -> bool
   {
     for (const auto& [region, t] : keep_)
       fmt::print(path_fp_, "{},{},{}\n",
-          id, region, t);
+          id, uat::region(region), t);
   }
 
   if (agent_fp_)
