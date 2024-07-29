@@ -10,7 +10,7 @@
 #include "airspace3d.hpp"
 
 // (First-price sealed-bid auction, same as the paper)
-class Naive : public uat::agent_for<Slot3d>
+class Naive : public uat::agent<Slot3d>
 {
 public:
   Naive(const Airspace3D&, int, std::FILE*, std::FILE*);
@@ -40,4 +40,4 @@ private:
   bool ended = false;
 };
 
-static_assert(uat::compatible_agent<Naive>);
+static_assert(uat::agent_compatible<Naive>);

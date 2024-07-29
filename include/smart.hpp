@@ -5,7 +5,7 @@
 
 #include "airspace3d.hpp"
 
-class Smart : public uat::agent_for<Slot3d>
+class Smart : public uat::agent<Slot3d>
 {
 public:
   Smart(const Airspace3D&, int);
@@ -25,4 +25,4 @@ private:
   uat::value_t spent = 0;
 };
 
-static_assert(uat::compatible_agent<Smart>);
+static_assert(uat::agent_compatible<Smart>);

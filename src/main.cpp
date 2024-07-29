@@ -69,13 +69,13 @@ int main(int argc, char *argv[])
 
   Airspace3D space{opts.dimensions};
 
-  auto factory = [&](uint_t t, int seed) -> std::vector<agent> {
+  auto factory = [&](uint_t t, int seed) -> std::vector<any_agent> {
     if (t >= opts.max_time)
       return {};
 
     std::mt19937 rng(seed);
 
-    std::vector<agent> result;
+    std::vector<any_agent> result;
     result.reserve(opts.n_agents + (t == 0 ? 1 : 0));
 
     if (t == 0)
@@ -87,22 +87,18 @@ int main(int argc, char *argv[])
     return result;
   };
 
-  simulation_opts_t sim_opts = {
-    /* .time_window = */ std::nullopt,
-    /* .stop_criteria = */ uat::stop_criteria::no_agents_t{},
-    // .trade_callback = TODO;
-    nullptr,
-    // Example of trade callback
-    // [](uat::trade_info_t info) {
-    //   fmt::print(stderr,
-    //       "Trade: {} -> {} at {} at time {} for ${}\n",
-    //       info.from, info.to, info.location, info.time, info.value);
-    // },
-    // .status_callback = TODO;
-    nullptr,
-  };
-
-  simulate<Slot3d>(factory,
-      opts.seed < 0 ? std::random_device{}() : opts.seed,
-      sim_opts);
+  simulate<Slot3d>({
+    .factory = std::move(factory),
+    .time_window = std::nullopt,
+    .stop_criterion = uat::stop_criterion::no_agents_t{},
+    .trade_callback = nullptr,
+     // Example of trade callback
+     // [](uat::trade_info_t info) {
+     //   fmt::print(stderr,
+     //       "Trade: {} -> {} at {} at time {} for ${}\n",
+     //       info.from, info.to, info.location, info.time, info.value);
+     // },
+    .status_callback = nullptr,
+    .seed = opts.seed < 0 ? std::random_device{}() : opts.seed,
+  });
 }

@@ -40,7 +40,7 @@ struct hash<Slot3d> {
 };
 } // namespace std
 
-static_assert(uat::region<Slot3d>);
+static_assert(uat::region_compatible<Slot3d>);
 
 struct mission_t {
   Slot3d from;
