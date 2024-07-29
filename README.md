@@ -5,7 +5,7 @@ A Reinforcement Learning Framework for Urban Airspace Tradable Permit Model
 
 ```sh
 git submodule update --init --recursive
-make -H. -Bbuild -DCMAKE_EXPORT_COMPILE_COMMANDS=on -DCMAKE_BUILD_TYPE=Debug
+cmake -H. -Bbuild -DCMAKE_EXPORT_COMPILE_COMMANDS=on -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
@@ -13,7 +13,7 @@ cmake --build build
 
 ```sh
 git submodule update --init --recursive
-make -H. -Bbuild -DCMAKE_EXPORT_COMPILE_COMMANDS=on -DCMAKE_BUILD_TYPE=Release
+cmake -H. -Bbuild -DCMAKE_EXPORT_COMPILE_COMMANDS=on -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/uatsim -h
 ```
