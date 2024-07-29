@@ -31,6 +31,17 @@ struct Slot3d
   auto climb(const Slot3d& to) const -> bool;
 };
 
+auto operator<<(std::ostream&, const Slot3d&) -> std::ostream&;
+
+namespace std {
+template <>
+struct hash<Slot3d> {
+  auto operator()(const Slot3d& s) const -> std::size_t { return s.hash(); }
+};
+} // namespace std
+
+static_assert(uat::region<Slot3d>);
+
 struct mission_t {
   Slot3d from;
   Slot3d to;

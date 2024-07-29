@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
     nullptr,
   };
 
-  simulate(factory,
+  simulate<Slot3d>(factory,
       opts.seed < 0 ? std::random_device{}() : opts.seed,
       sim_opts);
 }

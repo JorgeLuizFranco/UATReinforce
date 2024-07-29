@@ -135,3 +135,7 @@ auto Slot3d::climb(const Slot3d& to) const -> bool
 {
   return to.pos[2] > pos[2];
 }
+
+auto operator<<(std::ostream& os, const Slot3d& slot) -> std::ostream& {
+  return os << slot.pos[0] << ',' << slot.pos[1] << ',' << slot.pos[2];
+}

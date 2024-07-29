@@ -10,18 +10,18 @@
 #include "airspace3d.hpp"
 
 // (First-price sealed-bid auction, same as the paper)
-class Naive
+class Naive : public uat::agent_for<Slot3d>
 {
 public:
   Naive(const Airspace3D&, int, std::FILE*, std::FILE*);
 
-  auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void;
+  auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void override;
 
-  auto ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void;
+  auto ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void override;
 
-  auto on_bought(const uat::region&, uat::uint_t, uat::value_t) -> void;
+  auto on_bought(const Slot3d&, uat::uint_t, uat::value_t) -> void override;
 
-  auto stop(uat::uint_t, uat::uint_t) -> bool;
+  auto stop(uat::uint_t, int) -> bool override;
 
 private:
   mission_t mission_;
@@ -39,3 +39,5 @@ private:
   std::FILE *agent_fp_, *path_fp_;
   bool ended = false;
 };
+
+static_assert(uat::compatible_agent<Naive>);

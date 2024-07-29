@@ -71,7 +71,7 @@ auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn st
       tries.clear();
       tries.reserve(congestion_param_ - start + 1);
 
-      ranges::copy(cool::closed_indices(start, congestion_param_), ranges::back_inserter(tries));
+      ranges::copy(ranges::views::closed_iota(start, congestion_param_), ranges::back_inserter(tries));
       ranges::shuffle(tries, rng);
 
       for (const auto wait : tries)
@@ -115,32 +115,31 @@ auto Naive::ask_phase(uint_t, uat::ask_fn ask, uat::permit_public_status_fn , in
   onsale_.clear();
 }
 
-auto Naive::on_bought(const region& s, uint_t t, value_t) -> void
+auto Naive::on_bought(const Slot3d& s, uint_t t, value_t) -> void
 {
-  keep_.insert({s.downcast<Slot3d>(), t});
+  keep_.insert({s, t});
 }
 
-auto Naive::stop(uint_t id, uint_t t) -> bool
+auto Naive::stop(uint_t, int) -> bool
 {
-  if (!ended)
-    return false;
+  return ended;
 
-  if (path_fp_)
-  {
-    for (const auto& [region, t] : keep_)
-      fmt::print(path_fp_, "{},{},{}\n",
-          id, uat::region(region), t);
-  }
+  // XXX not working anymore, agents shouldn't be able to know their id.
+  // Private status must be used instead
+  // if (path_fp_)
+  // {
+  //   for (const auto& [region, t] : keep_)
+  //     fmt::print(path_fp_, "{},{},{}\n",
+  //         id, uat::region(region), t);
+  // }
 
-  if (agent_fp_)
-  {
-    fmt::print(agent_fp_, "{},{},{},{},{},{},{},{},{},{}\n",
-        id, t + 1 - niter_, niter_, congestion_param_,
-        uat::region(mission_.from), uat::region(mission_.to),
-        fundamental_, sigma_,
-        mission_.length(), keep_.size() - 1.0);
-  }
-
-  return true;
+  // if (agent_fp_)
+  // {
+  //   fmt::print(agent_fp_, "{},{},{},{},{},{},{},{},{},{}\n",
+  //       id, t + 1 - niter_, niter_, congestion_param_,
+  //       uat::region(mission_.from), uat::region(mission_.to),
+  //       fundamental_, sigma_,
+  //       mission_.length(), keep_.size() - 1.0);
+  // }
 }
 
