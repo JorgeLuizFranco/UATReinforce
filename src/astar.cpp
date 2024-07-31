@@ -124,7 +124,7 @@ auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t b
           std::numeric_limits<value_t>::infinity() :
           icost + bid;
       }
-    }, status(s.location(), s.time())) + (turn ? turn_cost : 0.0) + (climb ? climb_cost : 0.0);
+    }, status(s.location, s.time)) + (turn ? turn_cost : 0.0) + (climb ? climb_cost : 0.0);
   };
 
   std::unordered_map<permit<Slot3d>, permit<Slot3d>> came_from;
@@ -145,7 +145,7 @@ auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t b
       return;
 
     const auto tentative = score[current].g + d;
-    const auto hnext = h(next.location(), next.time());
+    const auto hnext = h(next.location, next.time);
 
     if (tentative < score[next].g && tentative + hnext < maxcost) {
       came_from.insert_or_assign(next, current);
@@ -161,27 +161,27 @@ auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t b
     if (!valid)
       continue;
 
-    if (current.location() == to) {
+    if (current.location == to) {
       std::vector<permit<Slot3d>> path;
       path.push_back(current);
 
-      while (path.back().location() != from)
+      while (path.back().location != from)
         path.push_back(came_from.at(path.back()));
 
       return path;
     }
 
     // XXX: should we keep forbiding staying still?
-    // try_path(current, {current.location(), current.time() + 1});
+    // try_path(current, {current.location, current.time + 1});
 
-    auto nei = current.location().adjacent_regions();
+    auto nei = current.location.adjacent_regions();
     std::shuffle(nei.begin(), nei.end(), gen);
     for (auto nregion : nei)
     {
-      const auto& before = current.location() == from ? from : came_from.find(current)->second.location();
-      const auto turn = current.location().turn(before, nregion);
-      const auto climb = current.location().climb(nregion);
-      try_path(current, {std::move(nregion), current.time() + 1}, turn, climb);
+      const auto& before = current.location == from ? from : came_from.find(current)->second.location;
+      const auto turn = current.location.turn(before, nregion);
+      const auto climb = current.location.climb(nregion);
+      try_path(current, {std::move(nregion), current.time + 1}, turn, climb);
     }
   }
 

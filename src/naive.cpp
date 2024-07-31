@@ -41,7 +41,7 @@ auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn st
 
   onsale_ = std::exchange(keep_, {});
   const auto t_heuristic =
-    jules::max(onsale_ | ranges::views::transform([](const permit<Slot3d>& s) { return s.time(); }));
+    jules::max(onsale_ | ranges::views::transform([](const permit<Slot3d>& s) { return s.time; }));
 
   // check previous path
   if (last_time_ != std::numeric_limits<uat::uint_t>::max())
@@ -111,7 +111,7 @@ auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn st
 auto Naive::ask_phase(uint_t, uat::ask_fn ask, uat::permit_public_status_fn , int) -> void
 {
   for (const auto& position : onsale_)
-    ask(position.location(), position.time(), 0.0);
+    ask(position.location, position.time, 0.0);
   onsale_.clear();
 }
 

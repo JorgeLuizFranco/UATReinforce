@@ -98,7 +98,6 @@ int main(int argc, char *argv[])
      //       "Trade: {} -> {} at {} at time {} for ${}\n",
      //       info.from, info.to, info.location, info.time, info.value);
      // },
-    .status_callback = nullptr,
     .seed = opts.seed < 0 ? std::random_device{}() : opts.seed,
   });
 }
