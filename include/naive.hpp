@@ -1,7 +1,6 @@
 #pragma once
 
 #include <limits>
-#include <uat/type.hpp>
 #include <uat/agent.hpp>
 
 #include <unordered_set>
@@ -13,7 +12,7 @@
 class Naive : public uat::agent<Slot3d>
 {
 public:
-  Naive(const Airspace3D&, int, std::FILE*, std::FILE*);
+  Naive(uat::uint_t, const Airspace3d&, int, std::FILE*, std::FILE*);
 
   auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void override;
 
@@ -24,7 +23,8 @@ public:
   auto stop(uat::uint_t, int) -> bool override;
 
 private:
-  mission_t mission_;
+  uat::uint_t id_;
+  Mission mission_;
 
   uat::value_t fundamental_;
   uat::value_t sigma_;
@@ -37,7 +37,7 @@ private:
   uat::uint_t niter_ = 0;
 
   std::FILE *agent_fp_, *path_fp_;
-  bool ended = false;
+  bool stop_ = false;
 };
 
 static_assert(uat::agent_compatible<Naive>);

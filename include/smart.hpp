@@ -8,7 +8,7 @@
 class Smart : public uat::agent<Slot3d>
 {
 public:
-  Smart(const Airspace3D&, int);
+  Smart(const Airspace3d&, int);
 
   auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void override;
 
@@ -21,7 +21,7 @@ public:
   auto stop(uat::uint_t, int) -> bool override;
 
 private:
-  mission_t current_mission;
+  Mission current_mission;
   uat::value_t spent = 0;
 };
 

@@ -3,21 +3,20 @@
 #include <cool/indices.hpp>
 #include <fmt/core.h>
 
-#include <cassert>
 #include <algorithm>
 #include <iterator>
 #include <random>
 #include <tuple>
 #include <utility>
 
-Airspace3D::Airspace3D(std::array<uint_t, 3> dim) : dim_{dim}
+Airspace3d::Airspace3d(std::array<uint_t, 3> dim) : dim_{dim}
 {
   assert(dim_[0] > 1);
   assert(dim_[1] > 1);
   assert(dim_[2] > 1);
 }
 
-auto Airspace3D::random_mission(int seed) const -> mission_t
+auto Airspace3d::random_mission(int seed) const -> Mission
 {
   std::mt19937 g(seed);
 
@@ -37,9 +36,9 @@ auto Airspace3D::random_mission(int seed) const -> mission_t
   return {Slot3d{from, dim_}, Slot3d{to, dim_}};
 }
 
-auto Airspace3D::dimensions() const -> std::array<uint_t, 3u> { return dim_; }
+auto Airspace3d::dimensions() const -> std::array<uint_t, 3u> { return dim_; }
 
-auto Slot3d::adjacent_regions() const -> std::vector<Slot3d>
+auto Slot3d::neighbors() const -> std::vector<Slot3d>
 {
   std::vector<Slot3d> nei;
   nei.reserve(6);
@@ -63,6 +62,11 @@ auto Slot3d::hash() const -> std::size_t
 auto Slot3d::operator==(const Slot3d& other) const -> bool
 {
   return pos == other.pos;
+}
+
+auto Slot3d::operator!=(const Slot3d& other) const -> bool
+{
+  return pos != other.pos;
 }
 
 auto Slot3d::distance(const Slot3d& other) const -> uint_t
@@ -103,11 +107,6 @@ auto Slot3d::shortest_path(const Slot3d& to, int seed) const -> std::vector<Slot
   return result;
 }
 
-auto Slot3d::print(std::function<void(std::string_view, fmt::format_args)> f) const -> void
-{
-  f("{},{},{}", fmt::make_format_args(pos[0], pos[1], pos[2]));
-}
-
 auto Slot3d::turn(const Slot3d& before, const Slot3d& to) const -> bool
 {
   const auto deltax = static_cast<long>(pos[0]) - static_cast<long>(before.pos[0]);
@@ -136,6 +135,12 @@ auto Slot3d::climb(const Slot3d& to) const -> bool
   return to.pos[2] > pos[2];
 }
 
-auto operator<<(std::ostream& os, const Slot3d& slot) -> std::ostream& {
-  return os << slot.pos[0] << ',' << slot.pos[1] << ',' << slot.pos[2];
+auto std::hash<Slot3d>::operator()(const Slot3d& s) const -> std::size_t
+{
+  return s.hash();
+}
+
+auto Mission::distance() const -> uint_t
+{
+  return from.distance(to);
 }

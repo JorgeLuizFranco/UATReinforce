@@ -2,7 +2,6 @@
 
 #include <fmt/core.h>
 #include <type_traits>
-#include <uat/type.hpp>
 #include <uat/permit.hpp>
 
 using uint_t = uat::uint_t;
@@ -11,12 +10,12 @@ struct Slot3d
 {
   std::array<uint_t, 3> pos, dim;
 
-  auto adjacent_regions() const -> std::vector<Slot3d>;
+  auto neighbors() const -> std::vector<Slot3d>;
 
   auto hash() const -> std::size_t;
 
   auto operator==(const Slot3d&) const -> bool;
-  auto operator!=(const Slot3d& other) const -> bool { return !(*this == other); }
+  auto operator!=(const Slot3d&) const -> bool;
 
   auto distance(const Slot3d&) const -> uint_t;
 
@@ -24,36 +23,27 @@ struct Slot3d
 
   auto shortest_path(const Slot3d&, int) const -> std::vector<Slot3d>;
 
-  auto print(std::function<void(std::string_view, fmt::format_args)>) const -> void;
-
   auto turn(const Slot3d& before, const Slot3d& to) const -> bool;
 
   auto climb(const Slot3d& to) const -> bool;
 };
 
-auto operator<<(std::ostream&, const Slot3d&) -> std::ostream&;
-
-namespace std {
-template <>
-struct hash<Slot3d> {
-  auto operator()(const Slot3d& s) const -> std::size_t { return s.hash(); }
-};
-} // namespace std
-
-static_assert(uat::region_compatible<Slot3d>);
-
-struct mission_t {
-  Slot3d from;
-  Slot3d to;
-  auto length() const { return from.distance(to); }
+template <> struct std::hash<Slot3d>
+{
+  auto operator()(const Slot3d& s) const -> std::size_t;
 };
 
-class Airspace3D
+struct Mission {
+  Slot3d from, to;
+  auto distance() const -> uint_t;
+};
+
+class Airspace3d
 {
 public:
-  explicit Airspace3D(std::array<uint_t, 3>);
+  explicit Airspace3d(std::array<uint_t, 3>);
 
-  auto random_mission(int) const -> mission_t;
+  auto random_mission(int) const -> Mission;
 
   auto dimensions() const -> std::array<uint_t, 3u>;
 

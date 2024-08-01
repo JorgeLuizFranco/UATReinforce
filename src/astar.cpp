@@ -1,6 +1,5 @@
 #include "astar.hpp"
 
-#include <cassert>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -8,10 +7,7 @@
 #include <unordered_map>
 #include <variant>
 
-#include <uat/permit.hpp>
 #include <cool/compose.hpp>
-
-#include "airspace3d.hpp"
 
 using namespace uat;
 
@@ -64,7 +60,7 @@ private:
 auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t bid,
            value_t icost, value_t turn_cost, value_t climb_cost,
            value_t maxcost,
-           uat::permit_public_status_fn& status, int seed) -> std::vector<permit<Slot3d>>
+           permit_public_status_fn status, int seed) -> std::vector<permit<Slot3d>>
 {
   using namespace uat::permit_public_status;
   if (std::holds_alternative<unavailable>(status(from, t0)))
@@ -88,11 +84,11 @@ auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t b
       std::vector<permit<Slot3d>> solution;
       uint_t t = t0;
 
-      for (const auto& region : path)
+      for (const auto& slot : path)
       {
-        if (std::holds_alternative<unavailable>(status(region, t)))
+        if (std::holds_alternative<unavailable>(status(slot, t)))
           return {};
-        solution.push_back({region, t});
+        solution.push_back({slot, t});
         ++t;
       }
 
@@ -174,14 +170,14 @@ auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t b
     // XXX: should we keep forbiding staying still?
     // try_path(current, {current.location, current.time + 1});
 
-    auto nei = current.location.adjacent_regions();
+    auto nei = current.location.neighbors();
     std::shuffle(nei.begin(), nei.end(), gen);
-    for (auto nregion : nei)
+    for (auto nslot : nei)
     {
       const auto& before = current.location == from ? from : came_from.find(current)->second.location;
-      const auto turn = current.location.turn(before, nregion);
-      const auto climb = current.location.climb(nregion);
-      try_path(current, {std::move(nregion), current.time + 1}, turn, climb);
+      const auto turn = current.location.turn(before, nslot);
+      const auto climb = current.location.climb(nslot);
+      try_path(current, {std::move(nslot), current.time + 1}, turn, climb);
     }
   }
 

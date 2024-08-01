@@ -2,7 +2,7 @@
 
 #include <fmt/core.h>
 
-Smart::Smart(const Airspace3D& airspace, int seed)
+Smart::Smart(const Airspace3d& airspace, int seed)
   : current_mission(airspace.random_mission(seed))
 {
 }
