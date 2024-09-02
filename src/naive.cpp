@@ -18,8 +18,8 @@
 
 using namespace uat;
 
-Naive::Naive(const airspace& space, int seed, std::FILE* agent_fp, std::FILE* path_fp) :
-  agent_fp_{agent_fp}, path_fp_{path_fp}
+Naive::Naive(uint_t id, const Airspace3d& space, int seed, std::FILE* agent_fp, std::FILE* path_fp) :
+  id_{id}, agent_fp_{agent_fp}, path_fp_{path_fp}
 {
   std::mt19937 rng(seed);
 
@@ -32,7 +32,7 @@ Naive::Naive(const airspace& space, int seed, std::FILE* agent_fp, std::FILE* pa
   mission_ = space.random_mission(rng());
 }
 
-auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
+auto Naive::bid_phase(uint_t t, bid_fn bid, permit_public_status_fn status, int seed) -> void
 {
   ++niter_;
 
@@ -41,10 +41,10 @@ auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn st
 
   onsale_ = std::exchange(keep_, {});
   const auto t_heuristic =
-    jules::max(onsale_ | ranges::views::transform([](const permit& s) { return s.time(); }));
+    jules::max(onsale_ | ranges::views::transform([](const permit<Slot3d>& s) { return s.time; }));
 
   // check previous path
-  if (last_time_ != std::numeric_limits<uat::uint_t>::max())
+  if (last_time_ != std::numeric_limits<uint_t>::max())
   {
     auto path = astar(mission_.from, mission_.to, last_time_,
         t_heuristic,
@@ -57,7 +57,7 @@ auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn st
         onsale_.erase(position);
         keep_.insert(std::move(position));
       }
-      ended = true;
+      stop_ = true;
       return;
     }
   }
@@ -71,7 +71,7 @@ auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn st
       tries.clear();
       tries.reserve(congestion_param_ - start + 1);
 
-      ranges::copy(cool::closed_indices(start, congestion_param_), ranges::back_inserter(tries));
+      ranges::copy(ranges::view::closed_iota(start, congestion_param_), ranges::back_inserter(tries));
       ranges::shuffle(tries, rng);
 
       for (const auto wait : tries)
@@ -91,54 +91,58 @@ auto Naive::bid_phase(uint_t t, uat::bid_fn bid, uat::permit_public_status_fn st
     }
   }();
 
-  for (const auto& [region, t] : path) // see: https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
+  for (const auto& [slot, t] : path) // see: https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
   {
+    using namespace uat::permit_public_status;
     std::visit(cool::compose{
-      [](uat::permit_public_status::unavailable) { assert(false); },
-      [&, region = region, t = t](uat::permit_public_status::owned) {
-        onsale_.erase(uat::permit(region, t));
-        keep_.emplace(std::move(region), t);
+      [](unavailable) { assert(false); },
+      [&, slot = slot, t = t](owned) {
+        onsale_.erase({slot, t});
+        keep_.emplace(std::move(slot), t);
       },
-      [&, region = region, t = t](uat::permit_public_status::available) {
-        bid(std::move(region), t, fundamental_ - std::abs(dist(rng)));
+      [&, slot = slot, t = t](available) {
+        bid(std::move(slot), t, fundamental_ - std::abs(dist(rng)));
       },
-    }, status(region, t));
+    }, status(slot, t));
   }
 
-  ended = keep_.size() == path.size(); // false if there are missing waypoints
+  stop_ = keep_.size() != path.size(); // true if there are missing waypoints
 }
 
-auto Naive::ask_phase(uint_t, uat::ask_fn ask, uat::permit_public_status_fn , int) -> void
+auto Naive::ask_phase(uint_t, ask_fn ask, permit_public_status_fn, int) -> void
 {
   for (const auto& position : onsale_)
-    ask(position.location(), position.time(), 0.0);
+    ask(position.location, position.time, 0.0);
   onsale_.clear();
 }
 
-auto Naive::on_bought(const region& s, uint_t t, value_t) -> void
+auto Naive::on_bought(const Slot3d& s, uint_t t, value_t) -> void
 {
   keep_.insert({s, t});
 }
 
-auto Naive::stop(uint_t id, uint_t t) -> bool
+auto Naive::stop(uint_t t, int) -> bool
 {
-  if (!ended)
+  if (not stop_)
     return false;
 
   if (path_fp_)
   {
-    for (const auto& [region, t] : keep_)
-      fmt::print(path_fp_, "{},{},{}\n",
-          id, region, t);
+    for (const auto& [slot, t] : keep_)
+      fmt::print(path_fp_, "{},{},{},{},{}\n",
+          id_,
+          slot.pos[0], slot.pos[1], slot.pos[2],
+          t);
   }
 
   if (agent_fp_)
   {
-    fmt::print(agent_fp_, "{},{},{},{},{},{},{},{},{},{}\n",
-        id, t + 1 - niter_, niter_, congestion_param_,
-        mission_.from, mission_.to,
+    fmt::print(agent_fp_, "{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+        id_, t + 1 - niter_, niter_, congestion_param_,
+        mission_.from.pos[0], mission_.from.pos[1], mission_.from.pos[2],
+        mission_.to.pos[0], mission_.to.pos[1], mission_.to.pos[2],
         fundamental_, sigma_,
-        mission_.length(), keep_.size() - 1.0);
+        mission_.distance(), keep_.size() - 1.0);
   }
 
   return true;

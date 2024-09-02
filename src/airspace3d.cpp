@@ -9,14 +9,14 @@
 #include <tuple>
 #include <utility>
 
-Airspace3D::Airspace3D(std::array<uint_t, 3> dim) : dim_{dim}
+Airspace3d::Airspace3d(std::array<uint_t, 3> dim) : dim_{dim}
 {
   assert(dim_[0] > 1);
   assert(dim_[1] > 1);
   assert(dim_[2] > 1);
 }
 
-auto Airspace3D::random_mission(int seed) const -> uat::mission_t
+auto Airspace3d::random_mission(int seed) const -> Mission
 {
   std::mt19937 g(seed);
 
@@ -36,11 +36,11 @@ auto Airspace3D::random_mission(int seed) const -> uat::mission_t
   return {Slot3d{from, dim_}, Slot3d{to, dim_}};
 }
 
-auto Airspace3D::dimensions() const -> std::array<uint_t, 3u> { return dim_; }
+auto Airspace3d::dimensions() const -> std::array<uint_t, 3u> { return dim_; }
 
-auto Slot3d::adjacent_regions() const -> std::vector<uat::region>
+auto Slot3d::neighbors() const -> std::vector<Slot3d>
 {
-  std::vector<uat::region> nei;
+  std::vector<Slot3d> nei;
   nei.reserve(6);
 
   if (pos[0] > 0) nei.push_back(Slot3d{{pos[0] - 1, pos[1], pos[2]}, dim});
@@ -64,6 +64,11 @@ auto Slot3d::operator==(const Slot3d& other) const -> bool
   return pos == other.pos;
 }
 
+auto Slot3d::operator!=(const Slot3d& other) const -> bool
+{
+  return pos != other.pos;
+}
+
 auto Slot3d::distance(const Slot3d& other) const -> uint_t
 {
   constexpr auto diff = [](auto x, auto y) { return x > y ? x - y : y - x; };
@@ -73,10 +78,15 @@ auto Slot3d::distance(const Slot3d& other) const -> uint_t
     diff(pos[2], other.pos[2]);
 }
 
-auto Slot3d::shortest_path(const Slot3d& to, int seed) const -> std::vector<uat::region>
+auto Slot3d::heuristic_distance(const Slot3d& other) const -> double
+{
+  return static_cast<double>(distance(other));
+}
+
+auto Slot3d::shortest_path(const Slot3d& to, int seed) const -> std::vector<Slot3d>
 {
   // prefers L instead of diagonal
-  std::vector<uat::region> result;
+  std::vector<Slot3d> result;
   auto current = *this;
 
   result.push_back(current);
@@ -95,11 +105,6 @@ auto Slot3d::shortest_path(const Slot3d& to, int seed) const -> std::vector<uat:
   }
 
   return result;
-}
-
-auto Slot3d::print(std::function<void(std::string_view, fmt::format_args)> f) const -> void
-{
-  f("{},{},{}", fmt::make_format_args(pos[0], pos[1], pos[2]));
 }
 
 auto Slot3d::turn(const Slot3d& before, const Slot3d& to) const -> bool
@@ -128,4 +133,14 @@ auto Slot3d::turn(const Slot3d& before, const Slot3d& to) const -> bool
 auto Slot3d::climb(const Slot3d& to) const -> bool
 {
   return to.pos[2] > pos[2];
+}
+
+auto std::hash<Slot3d>::operator()(const Slot3d& s) const -> std::size_t
+{
+  return s.hash();
+}
+
+auto Mission::distance() const -> uint_t
+{
+  return from.distance(to);
 }

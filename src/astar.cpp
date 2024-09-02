@@ -7,8 +7,6 @@
 #include <unordered_map>
 #include <variant>
 
-#include <uat/permit.hpp>
-#include <uat/airspace.hpp>
 #include <cool/compose.hpp>
 
 using namespace uat;
@@ -59,10 +57,10 @@ private:
   Cmp cmp_;
 };
 
-auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t bid,
+auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t bid,
            value_t icost, value_t turn_cost, value_t climb_cost,
            value_t maxcost,
-           uat::permit_public_status_fn& status, int seed) -> std::vector<permit>
+           permit_public_status_fn status, int seed) -> std::vector<permit<Slot3d>>
 {
   using namespace uat::permit_public_status;
   if (std::holds_alternative<unavailable>(status(from, t0)))
@@ -76,21 +74,21 @@ auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t b
 
   // tries shortest path first
   {
-    const auto candidate = [&]() -> std::vector<permit> {
+    const auto candidate = [&]() -> std::vector<permit<Slot3d>> {
       auto path = from.shortest_path(to, gen());
       assert(path.size() == 0 || path.size() == from.distance(to) + 1);
 
       if (path.size() == 0)
         return {};
 
-      std::vector<permit> solution;
+      std::vector<permit<Slot3d>> solution;
       uint_t t = t0;
 
-      for (const auto& region : path)
+      for (const auto& slot : path)
       {
-        if (std::holds_alternative<unavailable>(status(region, t)))
+        if (std::holds_alternative<unavailable>(status(slot, t)))
           return {};
-        solution.push_back({region, t});
+        solution.push_back({slot, t});
         ++t;
       }
 
@@ -104,8 +102,8 @@ auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t b
   // tie-break trick: https://theory.stanford.edu/~amitp/GameProgramming/Heuristics.html#breaking-ties
   const auto trick = 1.0 + icost / from.distance(to);
 
-  const auto h = [&](const region& s, uint_t t) -> value_t {
-    const auto hash = std::hash<permit>{}({s, t}) % 1000;
+  const auto h = [&](const Slot3d& s, uint_t t) -> value_t {
+    const auto hash = std::hash<permit<Slot3d>>{}({s, t}) % 1000;
     const auto yatrick = 0.001 * hash / 1000.0;
 
     if (t > th) // I am sure that it will need to bid
@@ -113,7 +111,7 @@ auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t b
     return s.heuristic_distance(to) * icost * trick + yatrick;
   };
 
-  const auto cost = [&](const permit& s, bool turn, bool climb) {
+  const auto cost = [&](const permit<Slot3d>& s, bool turn, bool climb) {
     return std::visit(cool::compose{
       [&](unavailable) { return std::numeric_limits<value_t>::infinity(); },
       [&](owned) { return icost; },
@@ -122,31 +120,31 @@ auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t b
           std::numeric_limits<value_t>::infinity() :
           icost + bid;
       }
-    }, status(s.location(), s.time())) + (turn ? turn_cost : 0.0) + (climb ? climb_cost : 0.0);
+    }, status(s.location, s.time)) + (turn ? turn_cost : 0.0) + (climb ? climb_cost : 0.0);
   };
 
-  std::unordered_map<permit, permit> came_from;
-  std::unordered_map<permit, score_t> score;
+  std::unordered_map<permit<Slot3d>, permit<Slot3d>> came_from;
+  std::unordered_map<permit<Slot3d>, score_t> score;
 
   score[{from, t0}] = {0, h(from, t0)};
 
-  const auto cmp = [&score](const permit& a, const permit& b) {
+  const auto cmp = [&score](const permit<Slot3d>& a, const permit<Slot3d>& b) {
     return score[a].f > score[b].f;
   };
 
-  heap<permit, decltype(cmp)> open(cmp);
+  heap<permit<Slot3d>, decltype(cmp)> open(cmp);
   open.push({from, t0});
 
-  const auto try_path = [&](const permit& current, permit next, bool turn, bool climb) {
+  const auto try_path = [&](const permit<Slot3d>& current, permit<Slot3d> next, bool turn, bool climb) {
     const auto d = cost(next, turn, climb);
     if (std::isinf(d))
       return;
 
     const auto tentative = score[current].g + d;
-    const auto hnext = h(next.location(), next.time());
+    const auto hnext = h(next.location, next.time);
 
     if (tentative < score[next].g && tentative + hnext < maxcost) {
-      came_from[next] = current;
+      came_from.insert_or_assign(next, current);
       score[next] = {tentative, tentative + hnext};
 
       open.push(std::move(next));
@@ -159,26 +157,27 @@ auto astar(const region& from, const region& to, uint_t t0, uint_t th, value_t b
     if (!valid)
       continue;
 
-    if (current.location() == to) {
-      std::vector<permit> path;
+    if (current.location == to) {
+      std::vector<permit<Slot3d>> path;
       path.push_back(current);
 
-      while (path.back().location() != from)
+      while (path.back().location != from)
         path.push_back(came_from.at(path.back()));
 
       return path;
     }
 
     // XXX: should we keep forbiding staying still?
-    // try_path(current, {current.location(), current.time() + 1});
+    // try_path(current, {current.location, current.time + 1});
 
-    auto nei = current.location().adjacent_regions();
+    auto nei = current.location.neighbors();
     std::shuffle(nei.begin(), nei.end(), gen);
-    for (auto nregion : nei)
+    for (auto nslot : nei)
     {
-      const auto turn = current.location().turn(current.location() == from ? from : came_from[current].location(), nregion);
-      const auto climb = current.location().climb(nregion);
-      try_path(current, {std::move(nregion), current.time() + 1}, turn, climb);
+      const auto& before = current.location == from ? from : came_from.find(current)->second.location;
+      const auto turn = current.location.turn(before, nslot);
+      const auto climb = current.location.climb(nslot);
+      try_path(current, {std::move(nslot), current.time + 1}, turn, climb);
     }
   }
 

@@ -12,6 +12,7 @@ add_executable(uatsim
 
 target_include_directories(uatsim PRIVATE include)
 target_link_libraries(uatsim PRIVATE uat cool jules fmt CLI11::CLI11)
+target_compile_features(uatsim PRIVATE cxx_std_20)
 
 set_target_properties(uatsim PROPERTIES CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 target_compile_options(uatsim PRIVATE "$<$<CONFIG:DEBUG>:-O0>")
@@ -26,5 +27,5 @@ if(MSVC)
     target_compile_options(uatsim PRIVATE "/W4")
   endif()
 elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
-  target_compile_options(uatsim PRIVATE -Wall -Wextra -Werror -pedantic)
+  target_compile_options(uatsim PRIVATE -Wall -Wextra -Werror -pedantic -Wno-missing-field-initializers)
 endif()

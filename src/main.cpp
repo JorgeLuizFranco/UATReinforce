@@ -7,7 +7,6 @@
 #include <cool/indices.hpp>
 #include <cool/ccreate.hpp>
 #include <random>
-#include <fmt/core.h>
 
 #include <CLI/CLI.hpp>
 
@@ -67,40 +66,41 @@ int main(int argc, char *argv[])
   if (tfile)
     fmt::print(tfile.get(), "TransactionTime,From,To,X,Y,Z,Time,Value\n");
 
-  auto factory = [&](uint_t t, const airspace& space, int seed) -> std::vector<agent> {
+  Airspace3d space{opts.dimensions};
+
+  auto factory = [&, id = uint_t{0}](uint_t t, int seed) mutable -> std::vector<any_agent> {
     if (t >= opts.max_time)
       return {};
 
     std::mt19937 rng(seed);
 
-    std::vector<agent> result;
+    std::vector<any_agent> result;
     result.reserve(opts.n_agents + (t == 0 ? 1 : 0));
 
     if (t == 0)
       result.push_back(Smart(space, 42));
 
     for ([[maybe_unused]] const auto _ : cool::indices(opts.n_agents))
-      result.push_back(Naive(space, rng(), afile.get(), pfile.get()));
+      result.push_back(Naive(id++, space, rng(), afile.get(), pfile.get()));
 
     return result;
   };
 
-  simulation_opts_t sim_opts = {
-    /* .time_window = */ std::nullopt,
-    /* .stop_criteria = */ uat::stop_criteria::no_agents_t{},
-    // .trade_callback = TODO;
-    nullptr,
-    // Example of trade callback
-    // [](uat::trade_info_t info) {
-    //   fmt::print(stderr,
-    //       "Trade: {} -> {} at {} at time {} for ${}\n",
-    //       info.from, info.to, info.location, info.time, info.value);
-    // },
-    // .status_callback = TODO;
-    nullptr,
-  };
-
-  simulate(factory, Airspace3D{opts.dimensions},
-      opts.seed < 0 ? std::random_device{}() : opts.seed,
-      sim_opts);
+  simulate<Slot3d>({
+    .factory = std::move(factory),
+    .time_window = std::nullopt,
+    .trade_callback = tfile ? [&](trade_info_t<Slot3d> trade) {
+      if (trade.from != no_owner)
+        fmt::print(tfile.get(), "{},{},{},{},{},{},{},{}\n",
+                   trade.transaction_time, trade.from, trade.to,
+                   trade.location.pos[0], trade.location.pos[1], trade.location.pos[2],
+                   trade.time, trade.value);
+      else
+        fmt::print(tfile.get(), "{},NA,{},{},{},{},{},{}\n",
+                   trade.transaction_time, trade.to,
+                   trade.location.pos[0], trade.location.pos[1], trade.location.pos[2],
+                   trade.time, trade.value);
+    } : std::function<void(trade_info_t<Slot3d>)>(),
+    .seed = opts.seed < 0 ? std::random_device{}() : opts.seed,
+  });
 }
