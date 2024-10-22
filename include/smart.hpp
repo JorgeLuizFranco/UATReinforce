@@ -3,6 +3,9 @@
 #include <uat/type.hpp>
 #include <uat/agent.hpp>
 
+#include <limits>
+#include <cstdio>
+
 #include "airspace3d.hpp"
 
 class Smart : public uat::agent<Slot3d>
@@ -22,7 +25,16 @@ public:
 
 private:
   Mission current_mission;
+  Airspace3d QTable;
   uat::value_t spent = 0;
+  std::mt19937 rng;
+  double alpha; // Learning rate
+  double gamma; // Discount factor
+  double epsilon;  // Exploration rate
+
+  int choose_action(const Slot3d& state);
+  void update_q_table(const Slot3d& state, int action, double reward, const std::string& next_state);
+  std::string get_state();
 };
 
 static_assert(uat::agent_compatible<Smart>);
