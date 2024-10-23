@@ -20,7 +20,6 @@ using namespace uat;
 
 Smart::Smart(const Airspace3d& airspace, int seed)
   : current_mission(airspace.random_mission(seed)),
-    QTable(airspace),
     rng(seed)
 {
   std::mt19937 rng(seed);
@@ -29,11 +28,25 @@ Smart::Smart(const Airspace3d& airspace, int seed)
   alpha = 0.1;
   gamma = 0.9;
   epsilon = 0.1;
-  // QTable = airspace;
+  // criar struct de action e state
+  // qtable map<pair<state, action>, double>>
+  states.pos_grid.resize(airspace.dimensions().size(), std::vector<std::vector<int>>(airspace.dimensions().size(), std::vector<int>(airspace.dimensions().size(), 0)));
+  actions.bid_grid.resize(airspace.dimensions().size(), std::vector<std::vector<double>>(airspace.dimensions().size(), std::vector<double>(airspace.dimensions().size(), 0.0)));
+
+  // for (const auto& state : states) {
+  //   for (const auto& action : actions) {
+  //       qtable[{state, action}] = 0.0;
+  //   }
+  // }
+
   std::uniform_real_distribution<> dist;
-
   current_mission = airspace.random_mission(rng());
+}
 
+double Smart::get_reward(const Airspace3d& state) {
+  // se eu conseguir chegar ate o final com esse estado, recompensa 100
+  // caso contrario recompensa -1
+  return -1;
 }
 
 int Smart::choose_action(const Slot3d& state) {
@@ -78,10 +91,11 @@ auto Smart::ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, in
 
 }
 
-auto Smart::on_bought(const Slot3d&, uat::uint_t, uat::value_t v) -> void
+auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) -> void
 {
   spent += v;
 
+  // keep_.insert({location, time});
   // check whether mission has been completed
   // then starts a new mission
   // mission_ = space.random_mission(rng());
