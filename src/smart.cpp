@@ -24,11 +24,6 @@ Smart::Smart(const Airspace3d& airspace, int seed)
 {
   std::mt19937 rng(seed);
 
-  // Q learning variables
-  alpha = 0.1;
-  gamma = 0.9;
-  epsilon = 0.1;
-
   std::uniform_real_distribution<> dist;
   current_mission = airspace.random_mission(rng());
 }

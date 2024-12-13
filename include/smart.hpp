@@ -33,10 +33,6 @@ private:
   std::unordered_set<uat::permit<Slot3d>> keep_, onsale_;
 
   std::uniform_real_distribution<> dist;
-
-  double alpha; // Learning rate
-  double gamma; // Discount factor
-  double epsilon;  // Exploration rate
 };
 
 static_assert(uat::agent_compatible<Smart>);
