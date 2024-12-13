@@ -11,14 +11,6 @@
 
 #include "airspace3d.hpp"
 
-typedef struct {
-  std::vector<std::vector<std::vector<int>>> pos_grid;
-} State;
-
-typedef struct {
-  std::vector<std::vector<std::vector<double>>> bid_grid;
-} Action;
-
 class Smart : public uat::agent<Slot3d>
 {
 public:
@@ -38,21 +30,13 @@ private:
   Mission current_mission;
   uat::value_t spent = 0;
   std::mt19937 rng;
+  std::unordered_set<uat::permit<Slot3d>> keep_, onsale_;
 
-  // 3d matrix representing the states (locations where the smart agent has permissions)
-  // and actions (the bid for every position in space)
-  State states;
-  Action actions;
-
-  std::map<std::pair<State, Action>, double> qtable;
   std::uniform_real_distribution<> dist;
+
   double alpha; // Learning rate
   double gamma; // Discount factor
   double epsilon;  // Exploration rate
-
-  int choose_action(const Slot3d& state);
-  void update_q_table(const Slot3d& state, int action, double reward, const std::string& next_state);
-  double get_reward(const Airspace3d& state);
 };
 
 static_assert(uat::agent_compatible<Smart>);

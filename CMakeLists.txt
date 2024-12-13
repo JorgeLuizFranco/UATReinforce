@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 
+# pytorch path
+set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/libtorch")
+
 add_subdirectory(external/uatlib)
 add_subdirectory(external/CLI11)
+add_subdirectory(external/libtorch)
+find_package(Torch REQUIRED)
 
 add_executable(uatsim
   src/main.cpp
@@ -11,7 +16,7 @@ add_executable(uatsim
   src/smart.cpp)
 
 target_include_directories(uatsim PRIVATE include)
-target_link_libraries(uatsim PRIVATE uat cool jules fmt CLI11::CLI11)
+target_link_libraries(uatsim PRIVATE uat cool jules fmt CLI11::CLI11 ${TORCH_LIBRARIES})
 target_compile_features(uatsim PRIVATE cxx_std_20)
 
 set_target_properties(uatsim PROPERTIES CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
