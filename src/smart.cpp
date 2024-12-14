@@ -31,7 +31,7 @@ Smart::Smart(const Airspace3d& airspace, int seed)
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
 {
-  uat::uint_t target_time = time + 1;
+
 }
 
 auto Smart::ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void
