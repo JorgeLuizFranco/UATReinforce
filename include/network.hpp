@@ -47,28 +47,3 @@ public:
     std::tuple<std::vector<double>, double, bool> step(int action);
     std::vector<double> getState() const;
 };
-
-class DQLAgent {
-private:
-    torch::Device device;
-    std::shared_ptr<NeuralNetwork> qNetwork;
-    std::shared_ptr<NeuralNetwork> targetNetwork;
-    ReplayBuffer replayBuffer;
-    torch::optim::Adam optimizer;
-
-    double gamma;
-    double epsilon;
-    double epsilonMin;
-    double epsilonDecay;
-    size_t stateSize;
-    size_t actionSize;
-
-public:
-    DQLAgent(size_t stateSize, size_t actionSize, double gamma = 0.99,
-             double epsilon = 1.0, double epsilonMin = 0.01, double epsilonDecay = 0.995, long long replayMemorySize = 10000);
-    int getAction(const std::vector<double>& state);
-    void train();
-    void storeExperience(const std::vector<double>& state, int action, double reward,
-                         const std::vector<double>& nextState, bool done);
-    void syncTargetNetwork();
-};

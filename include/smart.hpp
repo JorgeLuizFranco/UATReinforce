@@ -8,13 +8,23 @@
 #include <map>
 #include <random>
 #include <vector>
+#include <memory>
 
 #include "airspace3d.hpp"
+
+#include "network.hpp"
 
 class Smart : public uat::agent<Slot3d>
 {
 public:
-  Smart(const Airspace3d&, int);
+  Smart(const Airspace3d&, int, size_t stateSize, size_t actionSize, double gamma = 0.99,
+            double epsilon = 1.0, double epsilonMin = 0.01, double epsilonDecay = 0.995, long long replayMemorySize = 10000);
+
+  // Default move and copy constructors and assignment operators
+  Smart(Smart&&) = default;
+  Smart& operator=(Smart&&) = default;
+  Smart(const Smart&) = default;
+  Smart& operator=(const Smart&) = default;
 
   auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void override;
 
@@ -26,6 +36,15 @@ public:
 
   auto stop(uat::uint_t, int) -> bool override;
 
+  int getAction(const std::vector<double>& state);
+
+  void train();
+
+  void storeExperience(const std::vector<double>& state, int action, double reward,
+                        const std::vector<double>& nextState, bool done);
+
+  void syncTargetNetwork();
+
 private:
   Mission current_mission;
   uat::value_t spent = 0;
@@ -33,6 +52,19 @@ private:
   std::unordered_set<uat::permit<Slot3d>> keep_, onsale_;
 
   std::uniform_real_distribution<> dist;
+
+  torch::Device device;  // Simple initialization, OK in header
+  std::shared_ptr<NeuralNetwork> qNetwork; // Default nullptr, OK in header
+  std::shared_ptr<NeuralNetwork> targetNetwork; // Default nullptr, OK in header
+  ReplayBuffer replayBuffer;
+  std::unique_ptr<torch::optim::Adam> optimizer;
+
+  double gamma;
+  double epsilon;
+  double epsilonMin;
+  double epsilonDecay;
+  size_t stateSize;
+  size_t actionSize;
 };
 
 static_assert(uat::agent_compatible<Smart>);
