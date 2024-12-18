@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     result.reserve(opts.n_agents + (t == 0 ? 1 : 0));
 
     if (t == 0)
-      result.push_back(Smart(space, 42, 4, 2));
+      result.push_back(Smart(space, 42, 20*20*3, 100));
 
     for ([[maybe_unused]] const auto _ : cool::indices(opts.n_agents))
       result.push_back(Naive(id++, space, rng(), afile.get(), pfile.get()));

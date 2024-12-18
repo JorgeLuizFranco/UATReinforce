@@ -144,3 +144,8 @@ auto Mission::distance() const -> uint_t
 {
   return from.distance(to);
 }
+
+auto Airspace3d::to_vector() const -> std::vector<uint_t>
+{
+  return {dim_[0], dim_[1], dim_[2]};
+}

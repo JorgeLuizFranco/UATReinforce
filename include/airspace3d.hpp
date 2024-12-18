@@ -47,6 +47,7 @@ public:
 
   auto dimensions() const -> std::array<uint_t, 3u>;
 
+  auto to_vector() const -> std::vector<uint_t>;
 private:
   std::array<uint_t, 3> dim_;
 };

@@ -20,7 +20,8 @@ using namespace uat;
 
 Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t actionSize, double gamma,
                    double epsilon, double epsilonMin, double epsilonDecay, long long replayMemorySize)
-  : current_mission(airspace.random_mission(seed)),
+  : airspace(airspace),
+    current_mission(airspace.random_mission(seed)),
     rng(seed),
     device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU),
     qNetwork(std::make_shared<NeuralNetwork>(stateSize, 64, actionSize)),
@@ -37,6 +38,9 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   std::mt19937 rng(seed);
 
   std::uniform_real_distribution<> dist;
+  std::uniform_real_distribution<value_t> f{50.0, 150.0};
+
+  fundamental_ = f(rng);
   current_mission = airspace.random_mission(rng());
 
   // deep q learning
@@ -47,7 +51,29 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
 {
+  auto state = airspace.to_vector();
+  std::vector<double> stateDouble(state.begin(), state.end());
+  int action = getAction(stateDouble);
 
+  // maping de int para o grid em que tem que comprar as posicoes
+  // vector<permit<slot3d>> to_buy = func(action)
+
+  // for (const auto& [slot, t] : path) // see: https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
+  // {
+  //   using namespace uat::permit_public_status;
+  //   std::visit(cool::compose{
+  //     [](unavailable) { assert(false); },
+  //     [&, slot = slot, t = t](owned) {
+  //       onsale_.erase({slot, t});
+  //       keep_.emplace(std::move(slot), t);
+  //     },
+  //     [&, slot = slot, t = t](available) {
+  //       bid(std::move(slot), t, fundamental_ - std::abs(dist(rng)));
+  //     },
+  //   }, status(slot, t));
+  // }
+
+  // stop_ = keep_.size() != path.size(); // true if there are missing waypoints
 }
 
 auto Smart::ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void
@@ -105,8 +131,10 @@ int Smart::getAction(const std::vector<double>& state) {
 void Smart::train() {
     if (replayBuffer.size() < 64) return;
 
+    // Sample a minibatch from the replay buffer
     auto batch = replayBuffer.sample(64);
 
+    // Separate experiences into tensors
     std::vector<torch::Tensor> states, actions, rewards, next_states, dones;
     for (const auto& experience : batch) {
         states.push_back(std::get<0>(experience));
@@ -116,30 +144,37 @@ void Smart::train() {
         dones.push_back(std::get<4>(experience));
     }
 
+    // Stack tensors to create batches and move to device
     torch::Tensor statesBatch = torch::stack(states).to(device);
     torch::Tensor actionsBatch = torch::stack(actions).to(device);
     torch::Tensor rewardsBatch = torch::stack(rewards).to(device);
     torch::Tensor nextStatesBatch = torch::stack(next_states).to(device);
     torch::Tensor donesBatch = torch::stack(dones).to(device);
 
-
+    // Set network to training mode and reset gradients
     qNetwork->train();
     optimizer->zero_grad();
 
+    // Compute current Q-values for the taken actions
     torch::Tensor currentQValues = qNetwork->forward(statesBatch).gather(1, actionsBatch.unsqueeze(1));
 
+    // Compute next Q-values using the target network
     auto nextQValuesTuple = targetNetwork->forward(nextStatesBatch).max(1);
     torch::Tensor nextQValues = std::get<0>(nextQValuesTuple);
 
+    // Compute target Q-values
     torch::NoGradGuard noGrad;
     // torch::Tensor nextQValues = targetNetwork->forward(nextStatesBatch).max(1).values;
     torch::Tensor targetQValues = rewardsBatch + (1 - donesBatch) * gamma * nextQValues;
 
+    // Compute loss between current Q-values and target Q-values
     torch::Tensor loss = torch::mse_loss(currentQValues.squeeze(1), targetQValues);
 
+    // Backpropagation
     loss.backward();
     optimizer->step();
 
+    // Update epsilon for the epsilon-greedy policy
     epsilon = std::max(epsilonMin, epsilon * epsilonDecay);
 
     static int updateCounter = 0;
