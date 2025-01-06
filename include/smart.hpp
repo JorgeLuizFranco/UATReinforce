@@ -41,7 +41,6 @@ public:
 
 private:
   Mission current_mission;
-  Airspace3d airspace;
   uat::value_t spent = 0;
   std::mt19937 rng;
   std::unordered_set<uat::permit<Slot3d>> keep_, onsale_;
@@ -61,6 +60,9 @@ private:
   double epsilonDecay;
   size_t stateSize;
   size_t actionSize;
+
+  int x;
+  int y;
 };
 
 static_assert(uat::agent_compatible<Smart>);

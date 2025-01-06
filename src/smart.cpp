@@ -20,8 +20,7 @@ using namespace uat;
 
 Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t actionSize, double gamma,
                    double epsilon, double epsilonMin, double epsilonDecay, long long replayMemorySize)
-  : airspace(airspace),
-    current_mission(airspace.random_mission(seed)),
+  : current_mission(airspace.random_mission(seed)),
     rng(seed),
     device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU),
     qNetwork(std::make_shared<NeuralNetwork>(stateSize, 64, actionSize)),
@@ -47,33 +46,48 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   qNetwork->to(device);
   targetNetwork->to(device);
   syncTargetNetwork();
+
+  // airspace dimensions
+  x = 10;
+  y = 10;
 }
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
 {
-  auto state = airspace.to_vector();
-  std::vector<double> stateDouble(state.begin(), state.end());
+  using namespace uat::permit_public_status;
+
+  // Creating a state vector, so it can be sent to the neural network
+  std::vector<double> stateDouble(x*y, 0);
+  for (const auto& [slot, t] : keep_) // see: https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
+  {
+    std::visit(cool::compose{
+      [](unavailable) { assert(false); },
+      [&, slot = slot, t = t](owned) {
+        int idx = slot.pos[1] * x + slot.pos[0];
+        stateDouble[idx] = 1.0;
+      },
+      [](available) {
+        assert(false);
+      },
+    }, status(slot, t));
+  }
+
   int action = getAction(stateDouble);
 
-  // maping de int para o grid em que tem que comprar as posicoes
-  // vector<permit<slot3d>> to_buy = func(action)
+  // Getting the position to be bid
+  int col = action % x;
+  int row = action / x;
+  Slot3d newSlot{{static_cast<uint_t>(col), static_cast<uint_t>(row), 0}};
 
-  // for (const auto& [slot, t] : path) // see: https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
-  // {
-  //   using namespace uat::permit_public_status;
-  //   std::visit(cool::compose{
-  //     [](unavailable) { assert(false); },
-  //     [&, slot = slot, t = t](owned) {
-  //       onsale_.erase({slot, t});
-  //       keep_.emplace(std::move(slot), t);
-  //     },
-  //     [&, slot = slot, t = t](available) {
-  //       bid(std::move(slot), t, fundamental_ - std::abs(dist(rng)));
-  //     },
-  //   }, status(slot, t));
-  // }
+  // Bidding
+  std::visit(cool::compose{
+    [](unavailable) { assert(false); },
+    [](owned) { assert(false); },
+    [&, slot = newSlot, t = time](available) {
+      bid(std::move(newSlot), t, fundamental_ - std::abs(dist(rng)));
+    },
+  }, status(newSlot, time));
 
-  // stop_ = keep_.size() != path.size(); // true if there are missing waypoints
 }
 
 auto Smart::ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void
