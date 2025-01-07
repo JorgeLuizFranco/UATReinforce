@@ -58,21 +58,6 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
 {
   using namespace uat::permit_public_status;
 
-  // Updating the state vector, so it can be sent to the neural network
-  for (const auto& [slot, t] : keep_) // see: https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
-  {
-    std::visit(cool::compose{
-      [](unavailable) { assert(false); },
-      [&, slot = slot, t = t](owned) {
-        int idx = slot.pos[1] * x + slot.pos[0];
-        curr_state[idx] = 1.0;
-      },
-      [](available) {
-        assert(false);
-      },
-    }, status(slot, t));
-  }
-
   last_action = getAction(curr_state);
 
   // Getting the position to be bid
