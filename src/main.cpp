@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
   {
     uint_t max_time = 10;
     uint_t n_agents = 10;
-    std::array<uint_t, 3> dimensions = {20, 20, 3};
+    std::array<uint_t, 3> dimensions = {10, 10, 0};
     int seed = -1;
 
     std::string afilename;

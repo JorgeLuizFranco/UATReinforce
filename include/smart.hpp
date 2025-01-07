@@ -39,6 +39,8 @@ public:
 
   void syncTargetNetwork();
 
+  bool canAchieveMission(uat::uint_t);
+
 private:
   Mission current_mission;
   uat::value_t spent = 0;
@@ -63,6 +65,9 @@ private:
 
   int x;
   int y;
+
+  std::vector<double> curr_state;
+  int last_action;
 };
 
 static_assert(uat::agent_compatible<Smart>);

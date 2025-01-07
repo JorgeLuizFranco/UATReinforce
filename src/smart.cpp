@@ -50,21 +50,22 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   // airspace dimensions
   x = 10;
   y = 10;
+
+  curr_state = std::vector<double>(x * y, 0.0);
 }
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
 {
   using namespace uat::permit_public_status;
 
-  // Creating a state vector, so it can be sent to the neural network
-  std::vector<double> stateDouble(x*y, 0);
+  // Updating the state vector, so it can be sent to the neural network
   for (const auto& [slot, t] : keep_) // see: https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
   {
     std::visit(cool::compose{
       [](unavailable) { assert(false); },
       [&, slot = slot, t = t](owned) {
         int idx = slot.pos[1] * x + slot.pos[0];
-        stateDouble[idx] = 1.0;
+        curr_state[idx] = 1.0;
       },
       [](available) {
         assert(false);
@@ -72,11 +73,11 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
     }, status(slot, t));
   }
 
-  int action = getAction(stateDouble);
+  last_action = getAction(curr_state);
 
   // Getting the position to be bid
-  int col = action % x;
-  int row = action / x;
+  int col = last_action % x;
+  int row = last_action / x;
   Slot3d newSlot{{static_cast<uint_t>(col), static_cast<uint_t>(row), 0}};
 
   // Bidding
@@ -99,7 +100,25 @@ auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) 
 {
   spent += v;
 
+  // Storing old state
+  std::vector<double> oldState(curr_state.begin(), curr_state.end());
+
   keep_.insert({location, time});
+
+  // Updating current state
+  curr_state[location.pos[1] * x + location.pos[0]] = 1;
+
+  double reward;
+  if (canAchieveMission(time)) {
+    reward = 100;
+    // current_mission = airspace.random_mission(rng);
+  }
+  else {
+    reward = -1;
+  }
+
+  storeExperience(oldState, last_action, reward, curr_state, reward==100);
+
   // check whether mission has been completed
   // then starts a new mission
   // mission_ = space.random_mission(rng());
@@ -114,6 +133,31 @@ auto Smart::stop(uat::uint_t t, int) -> bool
 {
   fmt::print(stderr, "Smart agent has stopped at time {}\n", t);
   return true;
+}
+
+bool Smart::canAchieveMission(uat::uint_t time) {
+    std::queue<Slot3d> toVisit;
+    std::unordered_set<Slot3d> visited;
+    toVisit.push(current_mission.from);
+    visited.insert(current_mission.from);
+
+    while(!toVisit.empty()) {
+        auto current = toVisit.front();
+        toVisit.pop();
+        if(current == current_mission.to) {
+            return true;
+        }
+        for(const auto& neighbor : current.neighbors()) {
+            // Check if neighbor is in keep_
+            // (time can be handled as needed)
+            if(keep_.contains({neighbor, time}) &&
+               !visited.count(neighbor)) {
+                visited.insert(neighbor);
+                toVisit.push(neighbor);
+            }
+        }
+    }
+    return false;
 }
 
 void Smart::syncTargetNetwork() {
