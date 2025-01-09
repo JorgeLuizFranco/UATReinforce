@@ -38,6 +38,7 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
 
   std::uniform_real_distribution<> dist;
   std::uniform_real_distribution<value_t> f{50.0, 150.0};
+  std::uniform_real_distribution<> bid_value(0.0, 25.0);
 
   fundamental_ = f(rng);
   current_mission = airspace.random_mission(rng());
@@ -60,9 +61,12 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
 
   last_action = getAction(curr_state);
 
-  // Getting the position to be bid
+  // Getting the position to be bid  
+  int buy_level = last_action / (x*y);
+
+  // Verificar se last action precisa de mod x*y 
   int col = last_action % x;
-  int row = last_action / x;
+  int row = (last_action%(x*y)) / x;
   Slot3d newSlot{{static_cast<uint_t>(col), static_cast<uint_t>(row), 0}};
 
   // Bidding
@@ -70,7 +74,7 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
     [](unavailable) { assert(false); },
     [](owned) { assert(false); },
     [&, slot = newSlot, t = time](available) {
-      bid(std::move(newSlot), t, fundamental_ - std::abs(dist(rng)));
+      bid(std::move(newSlot), t, bid_value(rng) + buy_level*0.25));
     },
   }, status(newSlot, time));
 

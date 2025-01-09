@@ -49,6 +49,7 @@ private:
 
   std::uniform_real_distribution<> dist;
   uat::value_t fundamental_;
+  std::uniform_real_distribution<> bid_value;
 
   torch::Device device;  // Simple initialization, OK in header
   std::shared_ptr<NeuralNetwork> qNetwork; // Default nullptr, OK in header
