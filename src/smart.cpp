@@ -53,6 +53,8 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   y = 10;
 
   curr_state = std::vector<double>(x * y, 0.0);
+
+  last_bid_slots = std::vector<int>();
 }
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
@@ -61,20 +63,22 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
 
   last_action = getAction(curr_state);
 
-  // Getting the position to be bid  
+  // How much we are going to pay for the slot
   int buy_level = last_action / (x*y);
 
-  // Verificar se last action precisa de mod x*y 
+  // Getting the position to be bid
   int col = last_action % x;
   int row = (last_action%(x*y)) / x;
   Slot3d newSlot{{static_cast<uint_t>(col), static_cast<uint_t>(row), 0}};
+
+  last_bid_slots.push_back(row+col);
 
   // Bidding
   std::visit(cool::compose{
     [](unavailable) { assert(false); },
     [](owned) { assert(false); },
     [&, slot = newSlot, t = time](available) {
-      bid(std::move(newSlot), t, bid_value(rng) + buy_level*0.25));
+      bid(std::move(newSlot), t, bid_value(rng) + buy_level*0.25);
     },
   }, status(newSlot, time));
 
@@ -82,7 +86,11 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
 
 auto Smart::ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void
 {
-
+  // We were not able to buy the slot we wanted, registering in the replay buffer
+  // updating state and receiving reward for unsuccesful buy
+  if (!last_bid_slots.empty()) {
+    storeExperience(curr_state, last_action, -1, curr_state, false);
+  }
 }
 
 auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) -> void
@@ -107,6 +115,10 @@ auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) 
   }
 
   storeExperience(oldState, last_action, reward, curr_state, reward==100);
+
+  // Removing the slot from vector
+  // Como so compra 1 posicao por vez, podemos deixar assim
+  last_bid_slots.pop_back();
 
   // check whether mission has been completed
   // then starts a new mission

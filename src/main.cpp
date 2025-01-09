@@ -1,4 +1,4 @@
-+++#include "airspace3d.hpp"
+#include "airspace3d.hpp"
 #include "naive.hpp"
 #include "smart.hpp"
 

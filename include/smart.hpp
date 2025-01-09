@@ -68,6 +68,7 @@ private:
   int y;
 
   std::vector<double> curr_state;
+  std::vector<int> last_bid_slots;
   int last_action;
 };
 
