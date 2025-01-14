@@ -53,6 +53,7 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   y = 10;
 
   curr_state = std::vector<double>(x * y, 0.0);
+  old_state = std::vector<double>(x*y, 0.0);
 
   last_bid_slots = std::vector<int>();
 }
@@ -78,47 +79,25 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
     [](unavailable) { assert(false); },
     [](owned) { assert(false); },
     [&, slot = newSlot, t = time](available) {
-      bid(std::move(newSlot), t, bid_value(rng) + buy_level*0.25);
+      bid(std::move(slot), t, bid_value(rng) + buy_level*0.25);
     },
   }, status(newSlot, time));
 
+  old_state.assign(curr_state.begin(), curr_state.end());
 }
 
 auto Smart::ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void
 {
-  // We were not able to buy the slot we wanted, registering in the replay buffer
-  // updating state and receiving reward for unsuccesful buy
-  if (!last_bid_slots.empty()) {
-    storeExperience(curr_state, last_action, -1, curr_state, false);
-  }
 }
 
 auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) -> void
 {
   spent += v;
-
-  // Storing old state
-  std::vector<double> oldState(curr_state.begin(), curr_state.end());
-
+  
   keep_.insert({location, time});
 
   // Updating current state
   curr_state[location.pos[1] * x + location.pos[0]] = 1;
-
-  double reward;
-  if (canAchieveMission(time)) {
-    reward = 100;
-    // current_mission = airspace.random_mission(rng);
-  }
-  else {
-    reward = -1;
-  }
-
-  storeExperience(oldState, last_action, reward, curr_state, reward==100);
-
-  // Removing the slot from vector
-  // Como so compra 1 posicao por vez, podemos deixar assim
-  last_bid_slots.pop_back();
 
   // check whether mission has been completed
   // then starts a new mission
@@ -132,33 +111,32 @@ auto Smart::on_sold(const Slot3d&, uat::uint_t, uat::value_t v) -> void
 
 auto Smart::stop(uat::uint_t t, int) -> bool
 {
-  fmt::print(stderr, "Smart agent has stopped at time {}\n", t);
-  return true;
-}
+  std::queue<Slot3d> toVisit;
+  std::unordered_set<Slot3d> visited;
+  toVisit.push(current_mission.from);
+  visited.insert(current_mission.from);
 
-bool Smart::canAchieveMission(uat::uint_t time) {
-    std::queue<Slot3d> toVisit;
-    std::unordered_set<Slot3d> visited;
-    toVisit.push(current_mission.from);
-    visited.insert(current_mission.from);
-
-    while(!toVisit.empty()) {
-        auto current = toVisit.front();
-        toVisit.pop();
-        if(current == current_mission.to) {
-            return true;
-        }
-        for(const auto& neighbor : current.neighbors()) {
-            // Check if neighbor is in keep_
-            // (time can be handled as needed)
-            if(keep_.contains({neighbor, time}) &&
-               !visited.count(neighbor)) {
-                visited.insert(neighbor);
-                toVisit.push(neighbor);
-            }
-        }
-    }
-    return false;
+  while(!toVisit.empty()) {
+      auto current = toVisit.front();
+      toVisit.pop();
+      if(current == current_mission.to) {
+          storeExperience(old_state, last_action, 100, curr_state, true);
+          fmt::print(stderr, "Smart agent has stopped at time {}\n", t);
+          return true;
+      }
+      for(const auto& neighbor : current.neighbors()) {
+          // Check if neighbor is in keep_
+          // (time can be handled as needed)
+          if(keep_.contains({neighbor, t}) &&
+            !visited.count(neighbor)) {
+              visited.insert(neighbor);
+              toVisit.push(neighbor);
+          }
+      }
+  }
+  storeExperience(old_state, last_action, -1, curr_state, false);
+  fmt::print(stderr, "Smart agent did not finish mission yet at time {}\n", t);
+  return false;
 }
 
 void Smart::syncTargetNetwork() {
