@@ -54,8 +54,7 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
 
   curr_state = std::vector<double>(x * y, 0.0);
   old_state = std::vector<double>(x*y, 0.0);
-
-  last_bid_slots = std::vector<int>();
+  last_action = std::vector<double>();
 }
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
@@ -64,24 +63,20 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
 
   last_action = getAction(curr_state);
 
-  // How much we are going to pay for the slot
-  int buy_level = last_action / (x*y);
+  for (int i = 0; i < x; i++) {
+    for (int j = 0; j < y; j++) {
+      Slot3d new_slot{{static_cast<uint_t>(y), static_cast<uint_t>(x), 0}};
 
-  // Getting the position to be bid
-  int col = last_action % x;
-  int row = (last_action%(x*y)) / x;
-  Slot3d newSlot{{static_cast<uint_t>(col), static_cast<uint_t>(row), 0}};
-
-  last_bid_slots.push_back(row+col);
-
-  // Bidding
-  std::visit(cool::compose{
-    [](unavailable) { assert(false); },
-    [](owned) { assert(false); },
-    [&, slot = newSlot, t = time](available) {
-      bid(std::move(slot), t, bid_value(rng) + buy_level*0.25);
-    },
-  }, status(newSlot, time));
+      // Bidding
+      std::visit(cool::compose{
+        [](unavailable) { assert(false); },
+        [](owned) { assert(false); },
+        [&, slot = new_slot, t = time](available) {
+          bid(std::move(slot), t, last_action[i*x+y]);
+        },
+      }, status(newSlot, time));
+    }
+  }
 
   old_state.assign(curr_state.begin(), curr_state.end());
 }
@@ -93,7 +88,7 @@ auto Smart::ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, in
 auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) -> void
 {
   spent += v;
-  
+
   keep_.insert({location, time});
 
   // Updating current state
@@ -146,23 +141,26 @@ void Smart::syncTargetNetwork() {
     }
 }
 
-int Smart::getAction(const std::vector<double>& state) {
+vector<double> Smart::getAction(const std::vector<double>& state) {
     torch::Tensor stateTensor = torch::tensor(state,  torch::dtype(torch::kFloat64)).to(device);
 
     qNetwork->eval();
     torch::NoGradGuard noGrad;
     torch::Tensor qValues = qNetwork->forward(stateTensor);
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(0.0, 1.0);
+    // std::random_device rd;
+    // std::mt19937 gen(rd());
+    // std::uniform_real_distribution<> dis(0.0, 1.0);
 
-    if (dis(gen) < epsilon) {
-        std::uniform_int_distribution<> actionDis(0, actionSize - 1);
-        return actionDis(gen);
-    }
+    // if (dis(gen) < epsilon) {
+    //     std::uniform_int_distribution<> actionDis(0, actionSize - 1);
+    //     return actionDis(gen);
+    // }
 
-    return qValues.argmax(0).item<int>();
+    std::vector<double> qValuesVec(qValues.data_ptr<double>(), qValues.data_ptr<double>() + qValues.numel());
+    return qValuesVec;
+
+    // return qValues.argmax(0).item<int>();
 }
 
 void Smart::train() {

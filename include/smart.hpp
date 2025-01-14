@@ -30,7 +30,7 @@ public:
 
   auto stop(uat::uint_t, int) -> bool override;
 
-  int getAction(const std::vector<double>& state);
+  vector<double> getAction(const std::vector<double>& state);
 
   void train();
 
@@ -69,8 +69,7 @@ private:
 
   std::vector<double> curr_state;
   std::vector<double> old_state;
-  std::vector<int> last_bid_slots;
-  int last_action;
+  std::vector<double> last_action;
 };
 
 static_assert(uat::agent_compatible<Smart>);
