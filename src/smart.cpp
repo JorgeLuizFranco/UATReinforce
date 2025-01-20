@@ -18,6 +18,9 @@
 
 using namespace uat;
 
+// TODO
+// - Guardar recompensas
+
 Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t actionSize, double gamma,
                    double epsilon, double epsilonMin, double epsilonDecay, long long replayMemorySize)
   : current_mission(airspace.random_mission(seed)),
@@ -74,7 +77,7 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
         [&, slot = new_slot, t = time](available) {
           bid(std::move(slot), t, last_action[i*x+y]);
         },
-      }, status(newSlot, time));
+      }, status(new_slot, time));
     }
   }
 
@@ -110,12 +113,15 @@ auto Smart::stop(uat::uint_t t, int) -> bool
   std::unordered_set<Slot3d> visited;
   toVisit.push(current_mission.from);
   visited.insert(current_mission.from);
+  uint_t min_dist = 1e9;
 
   while(!toVisit.empty()) {
       auto current = toVisit.front();
       toVisit.pop();
-      if(current == current_mission.to) {
-          storeExperience(old_state, last_action, 100, curr_state, true);
+      
+      min_dist = std::min(min_dist, current.distance(current_mission.to));
+      if(min_dist == 0) {
+          // storeExperience(old_state, last_action, 100, curr_state, true);
           fmt::print(stderr, "Smart agent has stopped at time {}\n", t);
           return true;
       }
@@ -129,7 +135,8 @@ auto Smart::stop(uat::uint_t t, int) -> bool
           }
       }
   }
-  storeExperience(old_state, last_action, -1, curr_state, false);
+
+  // storeExperience(old_state, last_action, -1, curr_state, false);
   fmt::print(stderr, "Smart agent did not finish mission yet at time {}\n", t);
   return false;
 }
@@ -141,23 +148,25 @@ void Smart::syncTargetNetwork() {
     }
 }
 
-vector<double> Smart::getAction(const std::vector<double>& state) {
+std::vector<double> Smart::getAction(const std::vector<double>& state) {
     torch::Tensor stateTensor = torch::tensor(state,  torch::dtype(torch::kFloat64)).to(device);
 
     qNetwork->eval();
     torch::NoGradGuard noGrad;
     torch::Tensor qValues = qNetwork->forward(stateTensor);
 
-    // std::random_device rd;
-    // std::mt19937 gen(rd());
-    // std::uniform_real_distribution<> dis(0.0, 1.0);
-
-    // if (dis(gen) < epsilon) {
-    //     std::uniform_int_distribution<> actionDis(0, actionSize - 1);
-    //     return actionDis(gen);
-    // }
-
     std::vector<double> qValuesVec(qValues.data_ptr<double>(), qValues.data_ptr<double>() + qValues.numel());
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+
+    for (int i = 0; i < x*y; i++) {
+      if (dis(gen) < epsilon) {
+        qValuesVec[i] = dis(gen);
+      }
+    }
+
     return qValuesVec;
 
     // return qValues.argmax(0).item<int>();

@@ -30,7 +30,7 @@ public:
 
   auto stop(uat::uint_t, int) -> bool override;
 
-  vector<double> getAction(const std::vector<double>& state);
+  std::vector<double> getAction(const std::vector<double>& state);
 
   void train();
 
