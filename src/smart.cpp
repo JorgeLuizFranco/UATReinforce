@@ -1,3 +1,5 @@
+#include <ATen/ops/chunk.h>
+#include <c10/core/ScalarType.h>
 #include <cool/compose.hpp>
 #include <cool/indices.hpp>
 #include <jules/base/numeric.hpp>
@@ -8,6 +10,7 @@
 #include <cassert>
 #include <limits>
 #include <random>
+#include <torch/types.h>
 #include <unordered_set>
 #include <utility>
 #include <variant>
@@ -49,7 +52,6 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   // deep q learning
   qNetwork->to(device);
   targetNetwork->to(device);
-  syncTargetNetwork();
 
   // airspace dimensions
   x = 10;
@@ -59,7 +61,6 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   old_state = std::vector<double>(x*y, 0.0);
   last_action = std::vector<double>();
   rewards = std::vector<double>();
-  log_probs = std::vector<double>();
 }
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
@@ -143,100 +144,32 @@ auto Smart::stop(uat::uint_t t, int) -> bool
   return false;
 }
 
-void Smart::syncTargetNetwork() {
-    // Correct way to copy weights in LibTorch C++
-    for (size_t i = 0; i < qNetwork->parameters().size(); ++i) {
-        targetNetwork->parameters()[i].data().copy_(qNetwork->parameters()[i].data());
-    }
-}
-
 std::vector<double> Smart::getAction(const std::vector<double>& state) {
     torch::Tensor stateTensor = torch::tensor(state,  torch::dtype(torch::kFloat64)).to(device);
 
     qNetwork->eval();
     torch::NoGradGuard noGrad;
-    torch::Tensor qValues = qNetwork->forward(stateTensor);
 
-    std::vector<double> qValuesVec(qValues.data_ptr<double>(), qValues.data_ptr<double>() + qValues.numel());
+    // Forward to get the mean and log var
+    torch::Tensor raw_output = qNetwork->forward(stateTensor);
+    auto split = torch::chunk(raw_output, 2, 0);
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(0.0, 1.0);
+    // Create normal distribution
+    auto mean = split[0].view({x, y});
+    auto log_var = split[1].view({x, y});
+    auto std = torch::exp(0.5 * log_var);
 
-    for (int i = 0; i < x*y; i++) {
-      if (dis(gen) < epsilon) {
-        qValuesVec[i] = dis(gen);
-      }
-    }
-
-    return qValuesVec;
-
-    // return qValues.argmax(0).item<int>();
+    // Sample and calculate log probabilities
+    
+    // Manual normal sampling with reparameterization trick
+    auto noise = torch::randn(mean.sizes());
+    auto bids = mean + std * noise;
+    auto flat_bids = bids.flatten();
+    flat_bids = flat_bids.contiguous().to(torch::kDouble);
+    
+    // Manually calculate log probability
+    log_probs = (-0.5 * (noise.pow(2) + std::log(2 * M_PI) + 2 * log_var)).sum();
+        
+    return std::vector<double>(flat_bids.data_ptr<double>(), flat_bids.data_ptr<double>() + flat_bids.numel());
 }
 
-void Smart::train() {
-    if (replayBuffer.size() < 64) return;
-
-    // Sample a minibatch from the replay buffer
-    auto batch = replayBuffer.sample(64);
-
-    // Separate experiences into tensors
-    std::vector<torch::Tensor> states, actions, rewards, next_states, dones;
-    for (const auto& experience : batch) {
-        states.push_back(std::get<0>(experience));
-        actions.push_back(std::get<1>(experience));
-        rewards.push_back(std::get<2>(experience));
-        next_states.push_back(std::get<3>(experience));
-        dones.push_back(std::get<4>(experience));
-    }
-
-    // Stack tensors to create batches and move to device
-    torch::Tensor statesBatch = torch::stack(states).to(device);
-    torch::Tensor actionsBatch = torch::stack(actions).to(device);
-    torch::Tensor rewardsBatch = torch::stack(rewards).to(device);
-    torch::Tensor nextStatesBatch = torch::stack(next_states).to(device);
-    torch::Tensor donesBatch = torch::stack(dones).to(device);
-
-    // Set network to training mode and reset gradients
-    qNetwork->train();
-    optimizer->zero_grad();
-
-    // Compute current Q-values for the taken actions
-    torch::Tensor currentQValues = qNetwork->forward(statesBatch).gather(1, actionsBatch.unsqueeze(1));
-
-    // Compute next Q-values using the target network
-    auto nextQValuesTuple = targetNetwork->forward(nextStatesBatch).max(1);
-    torch::Tensor nextQValues = std::get<0>(nextQValuesTuple);
-
-    // Compute target Q-values
-    torch::NoGradGuard noGrad;
-    // torch::Tensor nextQValues = targetNetwork->forward(nextStatesBatch).max(1).values;
-    torch::Tensor targetQValues = rewardsBatch + (1 - donesBatch) * gamma * nextQValues;
-
-    // Compute loss between current Q-values and target Q-values
-    torch::Tensor loss = torch::mse_loss(currentQValues.squeeze(1), targetQValues);
-
-    // Backpropagation
-    loss.backward();
-    optimizer->step();
-
-    // Update epsilon for the epsilon-greedy policy
-    epsilon = std::max(epsilonMin, epsilon * epsilonDecay);
-
-    static int updateCounter = 0;
-    if (++updateCounter % 100 == 0) {
-        syncTargetNetwork();
-    }
-}
-
-void Smart::storeExperience(const std::vector<double>& state, int action, double reward,
-                             const std::vector<double>& nextState, bool done) {
-
-    torch::Tensor stateTensor = torch::tensor(state, torch::dtype(torch::kFloat64)).to(device);
-    torch::Tensor actionTensor = torch::tensor({(long)action}).to(device);  // Actions as tensors
-    torch::Tensor rewardTensor = torch::tensor({reward}).to(device);
-    torch::Tensor nextStateTensor = torch::tensor(nextState, torch::dtype(torch::kFloat64)).to(device);
-    torch::Tensor doneTensor = torch::tensor({done}).to(device);
-
-    replayBuffer.add(stateTensor, actionTensor, rewardTensor, nextStateTensor, doneTensor);
-}

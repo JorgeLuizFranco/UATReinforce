@@ -36,14 +36,3 @@ public:
     size_t size() const;
 };
 
-class Environment {
-public:
-    std::vector<double> state;
-    int stepCount;
-    int maxSteps;
-
-    Environment(size_t stateSize, int maxSteps = 200);
-    void reset();
-    std::tuple<std::vector<double>, double, bool> step(int action);
-    std::vector<double> getState() const;
-};

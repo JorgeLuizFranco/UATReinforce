@@ -32,14 +32,9 @@ public:
 
   std::vector<double> getAction(const std::vector<double>& state);
 
-  void train();
-
-  void storeExperience(const std::vector<double>& state, int action, double reward,
-                        const std::vector<double>& nextState, bool done);
-
-  void syncTargetNetwork();
-
   bool canAchieveMission(uat::uint_t);
+
+  void clear_episode();
 
 private:
   Mission current_mission;
@@ -71,7 +66,7 @@ private:
   std::vector<double> old_state;
   std::vector<double> last_action;
   std::vector<double> rewards;
-  std::vector<double> log_probs;
+  torch::Tensor log_probs;
 };
 
 static_assert(uat::agent_compatible<Smart>);

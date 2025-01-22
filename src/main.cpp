@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
     fmt::print(tfile.get(), "TransactionTime,From,To,X,Y,Z,Time,Value\n");
 
   Airspace3d space{opts.dimensions};
-  int buy_levels = 4;
+  // int buy_levels = 4;
 
   auto factory = [&, id = uint_t{0}](uint_t t, int seed) mutable -> std::vector<any_agent> {
     if (t >= opts.max_time)

@@ -4,7 +4,7 @@
 NeuralNetwork::NeuralNetwork(int stateSize, int hiddenSize, int actionSize)
     : layer1(register_module("layer1", torch::nn::Linear(stateSize, hiddenSize))),
       layer2(register_module("layer2", torch::nn::Linear(hiddenSize, hiddenSize))),
-      outputLayer(register_module("outputLayer", torch::nn::Linear(hiddenSize, actionSize))) {
+      outputLayer(register_module("outputLayer", torch::nn::Linear(hiddenSize, 2*actionSize))) {
 }
 
 torch::Tensor NeuralNetwork::forward(torch::Tensor x) {
@@ -41,40 +41,4 @@ ReplayBuffer::sample(size_t batchSize) {
 
 size_t ReplayBuffer::size() const {
     return buffer.size();
-}
-
-Environment::Environment(size_t stateSize, int maxSteps) : state(stateSize), stepCount(0), maxSteps(maxSteps) {
-    reset();
-}
-
-void Environment::reset() {
-    stepCount = 0;
-    std::fill(state.begin(), state.end(), 0.0);
-}
-
-std::tuple<std::vector<double>, double, bool> Environment::step(int action) {
-    stepCount++;
-    double reward = 0.0;
-    if (action == 0) {
-        for (size_t i = 0; i < state.size(); ++i) {
-            state[i] -= 0.1;
-        }
-    } else {
-        for (size_t i = 0; i < state.size(); ++i) {
-            state[i] += 0.1;
-        }
-    }
-
-    if (stepCount >= maxSteps) {
-        if (state[0] > 1.0) {
-            reward = 10.0;
-        }
-        return std::make_tuple(state, reward, true);
-    }
-
-    return std::make_tuple(state, reward, false);
-}
-
-std::vector<double> Environment::getState() const {
-    return state;
 }
