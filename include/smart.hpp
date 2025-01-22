@@ -70,6 +70,8 @@ private:
   std::vector<double> curr_state;
   std::vector<double> old_state;
   std::vector<double> last_action;
+  std::vector<double> rewards;
+  std::vector<double> log_probs;
 };
 
 static_assert(uat::agent_compatible<Smart>);

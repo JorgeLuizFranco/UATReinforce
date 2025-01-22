@@ -58,6 +58,8 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   curr_state = std::vector<double>(x * y, 0.0);
   old_state = std::vector<double>(x*y, 0.0);
   last_action = std::vector<double>();
+  rewards = std::vector<double>();
+  log_probs = std::vector<double>();
 }
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
