@@ -1,7 +1,6 @@
 [  0%] Built target CLI11
 [ 23%] Built target uat
 [ 46%] Built target fmt
-[ 53%] Building CXX object CMakeFiles/uatsim.dir/src/network.cpp.o
-[ 61%] Building CXX object CMakeFiles/uatsim.dir/src/smart.cpp.o
-[ 69%] Linking CXX executable uatsim
+[ 53%] Building CXX object CMakeFiles/uatsim.dir/src/smart.cpp.o
+[ 61%] Linking CXX executable uatsim
 [100%] Built target uatsim

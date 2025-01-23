@@ -18,8 +18,8 @@ class Smart : public uat::agent<Slot3d>
 {
 public:
   Smart(const Airspace3d&, int, size_t stateSize, size_t actionSize, double gamma = 0.99,
-            double epsilon = 1.0, double epsilonMin = 0.01, double epsilonDecay = 0.995, long long replayMemorySize = 10000);
-
+            double epsilon = 1.0, double epsilonMin = 0.01, double epsilonDecay = 0.995, long long replayMemorySize = 10000, float learning_rate = 0.001);
+            
   auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void override;
 
   auto ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void override;
@@ -30,7 +30,7 @@ public:
 
   auto stop(uat::uint_t, int) -> bool override;
 
-  std::vector<double> getAction(const std::vector<double>& state);
+  std::vector<float> getAction(const std::vector<float>& state);
 
   bool canAchieveMission(uat::uint_t);
 
@@ -56,16 +56,17 @@ private:
   double epsilon;
   double epsilonMin;
   double epsilonDecay;
+  float learning_rate;
   size_t stateSize;
   size_t actionSize;
 
   int x;
   int y;
 
-  std::vector<double> curr_state;
-  std::vector<double> old_state;
-  std::vector<double> last_action;
-  std::vector<double> rewards;
+  std::vector<float> curr_state;
+  std::vector<float> old_state;
+  std::vector<float> last_action;
+  std::vector<float> rewards;
   torch::Tensor log_probs;
 };
 
