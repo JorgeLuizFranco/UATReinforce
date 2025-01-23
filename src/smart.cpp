@@ -22,35 +22,22 @@
 
 using namespace uat;
 
-Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t actionSize, double gamma,
-                   double epsilon, double epsilonMin, double epsilonDecay, long long replayMemorySize, float learning_rate)
+Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t actionSize, float learning_rate)
   : current_mission(airspace.random_mission(seed)),
     rng(seed),
     device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU),
     qNetwork(std::make_shared<NeuralNetwork>(stateSize, 64, actionSize)),
-    targetNetwork(std::make_shared<NeuralNetwork>(stateSize, 64, actionSize)),
-    replayBuffer(replayMemorySize),
     optimizer(std::make_unique<torch::optim::Adam>(qNetwork->parameters(), torch::optim::AdamOptions(1e-3))),
-    gamma(gamma),
-    epsilon(epsilon),
-    epsilonMin(epsilonMin),
-    epsilonDecay(epsilonDecay),
     learning_rate(learning_rate),
     stateSize(stateSize),
     actionSize(actionSize)
 {
   std::mt19937 rng(seed);
 
-  std::uniform_real_distribution<> dist;
-  std::uniform_real_distribution<value_t> f{50.0, 150.0};
-  std::uniform_real_distribution<> bid_value(0.0, 25.0);
-
-  fundamental_ = f(rng);
   current_mission = airspace.random_mission(rng());
 
   // deep q learning
   qNetwork->to(device);
-  targetNetwork->to(device);
 
   // airspace dimensions
   x = 10;

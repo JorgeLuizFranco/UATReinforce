@@ -21,18 +21,3 @@ public:
     NeuralNetwork(int stateSize, int hiddenSize, int actionSize);
     torch::Tensor forward(torch::Tensor x);
 };
-
-class ReplayBuffer {
-private:
-    std::deque<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>> buffer;
-    size_t maxSize;
-
-public:
-    ReplayBuffer(size_t size);
-    void add(torch::Tensor state, torch::Tensor action, torch::Tensor reward,
-             torch::Tensor nextState, torch::Tensor done);
-    std::vector<std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>>
-    sample(size_t batchSize);
-    size_t size() const;
-};
-

@@ -17,9 +17,8 @@
 class Smart : public uat::agent<Slot3d>
 {
 public:
-  Smart(const Airspace3d&, int, size_t stateSize, size_t actionSize, double gamma = 0.99,
-            double epsilon = 1.0, double epsilonMin = 0.01, double epsilonDecay = 0.995, long long replayMemorySize = 10000, float learning_rate = 0.001);
-            
+  Smart(const Airspace3d&, int, size_t stateSize, size_t actionSize, float learning_rate = 0.001);
+
   auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void override;
 
   auto ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void override;
@@ -42,20 +41,10 @@ private:
   std::mt19937 rng;
   std::unordered_set<uat::permit<Slot3d>> keep_, onsale_;
 
-  std::uniform_real_distribution<> dist;
-  uat::value_t fundamental_;
-  std::uniform_real_distribution<> bid_value;
-
   torch::Device device;  // Simple initialization, OK in header
   std::shared_ptr<NeuralNetwork> qNetwork; // Default nullptr, OK in header
-  std::shared_ptr<NeuralNetwork> targetNetwork; // Default nullptr, OK in header
-  ReplayBuffer replayBuffer;
   std::unique_ptr<torch::optim::Adam> optimizer;
 
-  double gamma;
-  double epsilon;
-  double epsilonMin;
-  double epsilonDecay;
   float learning_rate;
   size_t stateSize;
   size_t actionSize;
