@@ -35,6 +35,9 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   std::mt19937 rng(seed);
 
   current_mission = airspace.random_mission(rng());
+  std::cout << "tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
+  std::cout << "para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
+
 
   // deep q learning
   qNetwork->to(device);
@@ -47,30 +50,30 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   old_state = std::vector<float>(x*y, 0.0);
   last_action = std::vector<float>();
   rewards = std::vector<float>();
+
+  target_time = 100;
+  curr_time = 0;
 }
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
 {
   using namespace uat::permit_public_status;
+  curr_time++;
 
   last_action = getAction(curr_state);
-  for (const auto& loc : last_action) {
-    std::cout << loc << " ";
-  }
-  std::cout << std::endl;
 
   for (int i = 0; i < x; i++) {
     for (int j = 0; j < y; j++) {
-      Slot3d new_slot{{static_cast<uint_t>(y), static_cast<uint_t>(x), 0}};
+      Slot3d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j), 0}};
 
       // Bidding
       std::visit(cool::compose{
         [](unavailable) { assert(false); },
         [](owned) { assert(false); },
-        [&, slot = new_slot, t = time](available) {
-          bid(std::move(slot), t, last_action[i*x+y]);
+        [&, slot = new_slot, t = curr_time](available) {
+          bid(std::move(slot), t, last_action[i*x+j]);
         },
-      }, status(new_slot, time));
+      }, status(new_slot, curr_time));
     }
   }
 
@@ -86,6 +89,8 @@ auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) 
   spent += v;
 
   keep_.insert({location, time});
+  // std::cout << "comprei " << location.pos[0] << " " << location.pos[1] << std::endl;
+  // std::cout << "gastei " << v << " no tempo " << time << std::endl;
 
   // Updating current state
   curr_state[location.pos[1] * x + location.pos[0]] = 1;
@@ -108,6 +113,13 @@ auto Smart::stop(uat::uint_t t, int) -> bool
   visited.insert(current_mission.from);
   uint_t min_dist = 1e9;
 
+  for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++) {
+      std::cout << curr_state[i*10+j] << " ";
+    }
+    std::cout << std::endl;
+  }
+  
   double reward = -1;
   std::string msg = "Smart agent did not finish mission yet at time";
   bool stop = false;
@@ -153,11 +165,18 @@ auto Smart::stop(uat::uint_t t, int) -> bool
     }
   }
 
+  if (target_time < curr_time) {
+    target_time += 20;
+  }
+
   fmt::print(stderr, msg + " {}\n", t);
   return stop;
 }
 
 std::vector<float> Smart::getAction(const std::vector<float>& state) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
     // 1. Ensure gradient tracking
     qNetwork->train();  // Switch to train mode
     torch::AutoGradMode enable_grad(true);  // Enable gradient tracking
@@ -168,29 +187,47 @@ std::vector<float> Smart::getAction(const std::vector<float>& state) {
                                 .requires_grad_(true);
 
     // 3. Forward pass (now tracks gradients)
-    torch::Tensor raw_output = qNetwork->forward(stateTensor);
-    // Split into mean and log_var
-    auto split = torch::chunk(raw_output, 2, 0);
+    auto [mean, log_std] = qNetwork->forward(stateTensor);
 
-    // Constrain mean to [0,1] using sigmoid
-    auto mean = torch::sigmoid(split[0].view({x, y}));
+    auto std = torch::exp(0.5 * log_std);
 
-    // Constrain log_var to prevent explosion
-    auto log_var = torch::clamp(split[1].view({x, y}), -10.0, 5.0);
-    auto std = torch::exp(0.5 * log_var);
+    // // Sample and squash through sigmoid
+    // auto noise = torch::randn(mean.sizes());
+    // auto pre_squash = mean + std * noise;
+    // auto bids = torch::sigmoid(pre_squash);  // Now in [0,1]
 
-    // Sample and squash through sigmoid
-    auto noise = torch::randn(mean.sizes());
-    auto pre_squash = mean + std * noise;
-    auto bids = torch::sigmoid(pre_squash);  // Now in [0,1]
+    // // Compute log probability with Jacobian correction
+    // auto log_prob_pre = (-0.5 * (noise.pow(2) + std::log(2 * M_PI) + 2 * log_var)).sum();
+    // auto log_jacobian = torch::log(bids * (1 - bids) + 1e-8).sum();  // Avoid log(0)
+    // log_probs = log_prob_pre - log_jacobian;  // Account for sigmoid transform
 
-    // Compute log probability with Jacobian correction
-    auto log_prob_pre = (-0.5 * (noise.pow(2) + std::log(2 * M_PI) + 2 * log_var)).sum();
-    auto log_jacobian = torch::log(bids * (1 - bids) + 1e-8).sum();  // Avoid log(0)
-    log_probs = log_prob_pre - log_jacobian;  // Account for sigmoid transform
+    // Manual sampling from normal distribution
+    torch::Tensor noise = torch::empty_like(mean);
+    std::normal_distribution<float> dist(0.0f, 1.0f);
+    auto* noise_data = noise.data_ptr<float>();
+    for (int i = 0; i < noise.numel(); i++) {
+        noise_data[i] = dist(gen);
+    }
+
+    // Reparameterized sample
+    torch::Tensor raw_action = mean + std * noise;
+
+    // Sigmoid transformation
+    torch::Tensor action = torch::sigmoid(raw_action);
+
+    // Manual log probability calculation
+    torch::Tensor log_prob = -0.5 * (
+        torch::pow((raw_action - mean) / std, 2) +
+        2 * log_std +
+        torch::log(2 * M_PI * torch::ones_like(std))
+    );
+
+    // Jacobian correction for sigmoid
+    log_prob -= torch::log(action * (1 - action) + 1e-8);
+    log_prob = log_prob.sum();  // Sum across action dimensions
 
     // Convert to vector
-    auto flat_bids = bids.flatten().contiguous();
+    auto flat_bids = action.flatten().contiguous();
     return std::vector<float>(flat_bids.data_ptr<float>(),
                              flat_bids.data_ptr<float>() + flat_bids.numel());
 }

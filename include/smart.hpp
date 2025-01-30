@@ -57,6 +57,9 @@ private:
   std::vector<float> last_action;
   std::vector<float> rewards;
   torch::Tensor log_probs;
+
+  uat::uint_t target_time;
+  uat::uint_t curr_time;
 };
 
 static_assert(uat::agent_compatible<Smart>);

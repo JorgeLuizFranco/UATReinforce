@@ -15,9 +15,9 @@
 
 class NeuralNetwork : public torch::nn::Module {
 private:
-    torch::nn::Linear layer1, layer2, outputLayer;
+    torch::nn::Linear layer1, layer2, outputLayer, output_log_std;
 
 public:
     NeuralNetwork(int stateSize, int hiddenSize, int actionSize);
-    torch::Tensor forward(torch::Tensor x);
+    std::pair<torch::Tensor, torch::Tensor> forward(torch::Tensor x);
 };

@@ -4,7 +4,8 @@
 NeuralNetwork::NeuralNetwork(int stateSize, int hiddenSize, int actionSize)
     : layer1(register_module("layer1", torch::nn::Linear(stateSize, hiddenSize))),
       layer2(register_module("layer2", torch::nn::Linear(hiddenSize, hiddenSize))),
-      outputLayer(register_module("outputLayer", torch::nn::Linear(hiddenSize, 2*actionSize))) {
+      outputLayer(register_module("outputLayer", torch::nn::Linear(hiddenSize, actionSize))),
+      output_log_std(register_module("output_log_std", torch::nn::Linear(hiddenSize, actionSize))) {
 
     torch::nn::init::xavier_normal_(layer1->weight);
     torch::nn::init::constant_(layer1->bias, 0.0);
@@ -12,9 +13,10 @@ NeuralNetwork::NeuralNetwork(int stateSize, int hiddenSize, int actionSize)
     torch::nn::init::constant_(layer2->bias, 0.0);
     }
 
-torch::Tensor NeuralNetwork::forward(torch::Tensor x) {
+std::pair<torch::Tensor, torch::Tensor> NeuralNetwork::forward(torch::Tensor x) {
     x = torch::relu(layer1(x));
     x = torch::relu(layer2(x));
-    x = outputLayer(x);
-    return x;
+    auto mean = outputLayer(x);
+    auto log_std = output_log_std(x);
+    return {mean, log_std};
 }
