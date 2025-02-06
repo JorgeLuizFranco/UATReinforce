@@ -40,15 +40,25 @@ private:
   uat::value_t spent = 0;
   std::mt19937 rng;
   std::unordered_set<uat::permit<Slot3d>> keep_, onsale_;
+  Airspace3d space;
 
   torch::Device device;  // Simple initialization, OK in header
   std::shared_ptr<NeuralNetwork> qNetwork; // Default nullptr, OK in header
   std::unique_ptr<torch::optim::Adam> optimizer;
 
+  torch::Tensor compute_returns();
+  std::tuple<std::string, float, bool> can_achieve_mission(uint_t t);
+  void calculate_dist(uint_t time, uat::permit_public_status_fn status);
+  void clean_states(uint_t t);
+  void back_propagation();
+
+  // Neural network params
   float learning_rate;
+  float gamma;
   size_t stateSize;
   size_t actionSize;
 
+  // Airspace dimensions
   int x;
   int y;
 
@@ -56,9 +66,9 @@ private:
   std::vector<float> old_state;
   std::vector<float> last_action;
   std::vector<float> rewards;
-  torch::Tensor log_probs;
+  std::vector<float> full_dist;
+  std::vector<torch::Tensor> log_probs;
 
-  uat::uint_t target_time;
   uat::uint_t curr_time;
 };
 

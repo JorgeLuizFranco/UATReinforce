@@ -10,6 +10,7 @@
 #include <cassert>
 #include <limits>
 #include <random>
+#include <torch/serialize/input-archive.h>
 #include <torch/types.h>
 #include <unordered_set>
 #include <utility>
@@ -25,6 +26,7 @@ using namespace uat;
 Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t actionSize, float learning_rate)
   : current_mission(airspace.random_mission(seed)),
     rng(seed),
+    space(airspace),
     device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU),
     qNetwork(std::make_shared<NeuralNetwork>(stateSize, 64, actionSize)),
     optimizer(std::make_unique<torch::optim::Adam>(qNetwork->parameters(), torch::optim::AdamOptions(1e-3))),
@@ -38,7 +40,6 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   std::cout << "tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
   std::cout << "para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
 
-
   // deep q learning
   qNetwork->to(device);
 
@@ -50,8 +51,10 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   old_state = std::vector<float>(x*y, 0.0);
   last_action = std::vector<float>();
   rewards = std::vector<float>();
+  log_probs = std::vector<torch::Tensor>();
+  full_dist = std::vector<float>(x*y, 1e9f);
+  gamma = 0.99;
 
-  target_time = 100;
   curr_time = 0;
 }
 
@@ -60,7 +63,23 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
   using namespace uat::permit_public_status;
   curr_time++;
 
-  last_action = getAction(curr_state);
+  calculate_dist(curr_time, status);
+
+  // Creating state vector to represent slots that I own + distances from shortest path
+  std::vector<float> state;
+  state.reserve(curr_state.size() + full_dist.size());
+  state.insert(state.end(), curr_state.begin(), curr_state.end());
+  state.insert(state.end(), full_dist.begin(), full_dist.end());
+
+  last_action = getAction(state);
+
+  // std::cout << "Iniciando ofertas do leilao no tempo " << curr_time << std::endl;
+  // for (int i = 0; i < x; i++) {
+  //   for (int j = 0; j < y; j++) {
+  //     std::cout << last_action[i*x+j] << " ";
+  //   }
+  //   std::cout << std::endl;
+  // }
 
   for (int i = 0; i < x; i++) {
     for (int j = 0; j < y; j++) {
@@ -93,7 +112,7 @@ auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) 
   // std::cout << "gastei " << v << " no tempo " << time << std::endl;
 
   // Updating current state
-  curr_state[location.pos[1] * x + location.pos[0]] = 1;
+  curr_state[location.pos[0] * x + location.pos[1]] = 1;
 
   // check whether mission has been completed
   // then starts a new mission
@@ -107,127 +126,191 @@ auto Smart::on_sold(const Slot3d&, uat::uint_t, uat::value_t v) -> void
 
 auto Smart::stop(uat::uint_t t, int) -> bool
 {
+  auto [msg, reward, stop] = can_achieve_mission(t);
+  rewards.push_back(reward);
+
+  if (stop) {
+    back_propagation();
+
+    log_probs.clear();
+    rewards.clear();
+    std::fill(curr_state.begin(), curr_state.end(), 0);
+    std::fill(old_state.begin(), old_state.end(), 0);
+    std::fill(full_dist.begin(), full_dist.end(), 1e9f);
+    keep_.clear();
+    spent = 0;
+
+    current_mission = space.random_mission(rng());
+    std::cout << "Tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
+    std::cout << "Para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
+  }
+
+  clean_states(t);
+
+  // fmt::print(stderr, msg + " {}\n", t);
+  return false;
+}
+
+std::vector<float> Smart::getAction(const std::vector<float>& state) {
+  qNetwork->eval();
+  torch::AutoGradMode enable_grad(true);
+
+  // Convert state to tensor
+  torch::Tensor stateTensor = torch::tensor(state, torch::dtype(torch::kFloat32))
+                              .to(device);
+
+  // Forward pass
+  auto [mean, log_std] = qNetwork->forward(stateTensor);
+
+  // Calculating std and noise to sample later
+  auto std = torch::exp(log_std).requires_grad_(true);
+  torch::Tensor noise = torch::randn_like(mean);
+
+  // Sampling action
+  torch::Tensor action = mean + std * noise;
+
+  // Log probability calculation
+  torch::Tensor log_prob = -0.5 * (
+      torch::sum(torch::pow(noise, 2), -1) +
+      2 * torch::sum(log_std, -1) +
+      mean.size(-1) * std::log(2 * M_PI)
+  );
+
+  // Store log_prob
+  log_probs.push_back(log_prob);
+
+  // Converting tensor action to vector
+  auto detached_action = action.detach();
+  auto flat_bids = detached_action.flatten().contiguous();
+
+  return std::vector<float>(flat_bids.data_ptr<float>(),
+                            flat_bids.data_ptr<float>() + flat_bids.numel());
+}
+
+torch::Tensor Smart::compute_returns() {
+  if (rewards.empty()) {
+    return torch::zeros({0}, torch::kFloat32);
+  }
+
+  std::vector<float> discounted;
+  float R = 0;
+
+  // Iterate through rewards in reverse order
+  for (auto it = rewards.rbegin(); it != rewards.rend(); ++it) {
+      R = *it + gamma * R;
+      discounted.insert(discounted.begin(), R);
+  }
+
+  // Convert vector to torch tensor
+  return torch::tensor(discounted, torch::kFloat32);
+}
+
+std::tuple<std::string, float, bool> Smart::can_achieve_mission(uint_t t) {
   std::queue<Slot3d> toVisit;
   std::unordered_set<Slot3d> visited;
+
   toVisit.push(current_mission.from);
   visited.insert(current_mission.from);
-  uint_t min_dist = 1e9;
 
-  for (int i = 0; i < 10; i++) {
-    for (int j = 0; j < 10; j++) {
-      std::cout << curr_state[i*10+j] << " ";
-    }
-    std::cout << std::endl;
-  }
-  
-  double reward = -1;
+  uint_t min_dist = 1e9;
+  float reward = -1;
   std::string msg = "Smart agent did not finish mission yet at time";
   bool stop = false;
 
+  // BFS algorithm
   while(!toVisit.empty()) {
-      auto current = toVisit.front();
-      toVisit.pop();
+    auto current = toVisit.front();
+    toVisit.pop();
 
-      min_dist = std::min(min_dist, current.distance(current_mission.to));
+    min_dist = std::min(min_dist, current.distance(current_mission.to));
 
-      if(min_dist == 0) {
-          reward = 100;
-          msg = "Smart agent has stopped at time";
-          stop =  true;
-          break;
+    if (min_dist == 0) {
+      reward = 100.0f;
+      msg = "Smart agent has stopped at time";
+      stop = true;
+      break;
+    }
+
+    for(const auto& neighbor : current.neighbors()) {
+      if(keep_.contains({neighbor, t}) &&
+        !visited.count(neighbor)) {
+          visited.insert(neighbor);
+          toVisit.push(neighbor);
       }
-
-      for(const auto& neighbor : current.neighbors()) {
-          // Check if neighbor is in keep_
-          // (time can be handled as needed)
-          if(keep_.contains({neighbor, t}) &&
-            !visited.count(neighbor)) {
-              visited.insert(neighbor);
-              toVisit.push(neighbor);
-          }
-      }
+    }
   }
+  reward = -static_cast<float>(min_dist);
 
-  // Updating network
-  // Backpropagation with proper gradient retention
-  if (log_probs.requires_grad()) {
-    auto loss = -log_probs * reward;
-    optimizer->zero_grad();
-    loss.backward();
-    torch::nn::utils::clip_grad_value_(qNetwork->parameters(), 1.0);  // Clip gradients to L2 norm of 1.0
-    optimizer->step();
-  }
+  return {msg, reward, stop};
+}
 
+void Smart::clean_states(uint_t t) {
   // Updating the slots we have for next round of bids
   for (const auto [location, time] : keep_) {
     if (time <= t) {
       curr_state[location.pos[1] * x + location.pos[0]] = 0;
     }
   }
-
-  if (target_time < curr_time) {
-    target_time += 20;
-  }
-
-  fmt::print(stderr, msg + " {}\n", t);
-  return stop;
 }
 
-std::vector<float> Smart::getAction(const std::vector<float>& state) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
+void Smart::back_propagation() {
+  qNetwork->train();
+  torch::AutoGradMode enable_grad(true);
 
-    // 1. Ensure gradient tracking
-    qNetwork->train();  // Switch to train mode
-    torch::AutoGradMode enable_grad(true);  // Enable gradient tracking
+  // Computing future returns
+  torch::Tensor returns_tensor = compute_returns();
 
-    // 2. Convert state to tensor with requires_grad
-    torch::Tensor stateTensor = torch::tensor(state, torch::dtype(torch::kFloat32))
-                                .to(device)
-                                .requires_grad_(true);
+  // Normalizing returns
+  returns_tensor = (returns_tensor - returns_tensor.mean()) / (returns_tensor.std() + 1e-8);
 
-    // 3. Forward pass (now tracks gradients)
-    auto [mean, log_std] = qNetwork->forward(stateTensor);
+  // Calculate loss
+  torch::Tensor loss = torch::zeros({}, torch::kFloat32);
+  for (size_t t = 0; t < log_probs.size(); ++t) {
+      loss += -log_probs[t] * returns_tensor[t];
+  }
 
-    auto std = torch::exp(0.5 * log_std);
+  // Se estiver ruim, podemos tirar a media do loss
+  // Dividir pelo tamanho das tentaivas
 
-    // // Sample and squash through sigmoid
-    // auto noise = torch::randn(mean.sizes());
-    // auto pre_squash = mean + std * noise;
-    // auto bids = torch::sigmoid(pre_squash);  // Now in [0,1]
+  // Backpropagation
+  optimizer->zero_grad();
+  loss.backward();
+  optimizer->step();
+}
 
-    // // Compute log probability with Jacobian correction
-    // auto log_prob_pre = (-0.5 * (noise.pow(2) + std::log(2 * M_PI) + 2 * log_var)).sum();
-    // auto log_jacobian = torch::log(bids * (1 - bids) + 1e-8).sum();  // Avoid log(0)
-    // log_probs = log_prob_pre - log_jacobian;  // Account for sigmoid transform
+void Smart::calculate_dist(uint_t time, uat::permit_public_status_fn status) {
+  using namespace uat::permit_public_status;
+  auto from = current_mission.from;
+  auto to = current_mission.to;
 
-    // Manual sampling from normal distribution
-    torch::Tensor noise = torch::empty_like(mean);
-    std::normal_distribution<float> dist(0.0f, 1.0f);
-    auto* noise_data = noise.data_ptr<float>();
-    for (int i = 0; i < noise.numel(); i++) {
-        noise_data[i] = dist(gen);
+  std::queue<Slot3d> q;
+  auto short_path = from.shortest_path(to, rng());
+  for (const auto&p : short_path) {
+    auto idx = p.pos[0]*x + p.pos[1];
+    full_dist[idx] = 0.0f;
+    q.push(p);
+  }
+
+  while(!q.empty()) {
+    auto current = q.front(); q.pop();
+    float curr_dist = full_dist[current.pos[0]*x + current.pos[1]];
+
+    for(const auto& neighbor : current.neighbors()) {
+      int idx = neighbor.pos[0]*x + neighbor.pos[1];
+
+      if (full_dist[idx] > curr_dist+1) {
+        full_dist[idx] = curr_dist+1;
+        q.push(neighbor);
+      }
     }
+  }
 
-    // Reparameterized sample
-    torch::Tensor raw_action = mean + std * noise;
-
-    // Sigmoid transformation
-    torch::Tensor action = torch::sigmoid(raw_action);
-
-    // Manual log probability calculation
-    torch::Tensor log_prob = -0.5 * (
-        torch::pow((raw_action - mean) / std, 2) +
-        2 * log_std +
-        torch::log(2 * M_PI * torch::ones_like(std))
-    );
-
-    // Jacobian correction for sigmoid
-    log_prob -= torch::log(action * (1 - action) + 1e-8);
-    log_prob = log_prob.sum();  // Sum across action dimensions
-
-    // Convert to vector
-    auto flat_bids = action.flatten().contiguous();
-    return std::vector<float>(flat_bids.data_ptr<float>(),
-                             flat_bids.data_ptr<float>() + flat_bids.numel());
+  for (int i = 0; i < x; i++) {
+    for (int j = 0; j < y; j++) {
+      Slot3d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j), 0}};
+      if (std::holds_alternative<unavailable>(status(new_slot, time))) {
+        full_dist[i*x+j] = 1e9f;
+      }
+    }
+  }
 }

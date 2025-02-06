@@ -63,7 +63,7 @@ auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t b
            permit_public_status_fn status, int seed) -> std::vector<permit<Slot3d>>
 {
   using namespace uat::permit_public_status;
-  if (std::holds_alternative<unavailable>(status(from, t0)))
+   if(std::holds_alternative<unavailable>(status(from, t0)))
     return {};
 
   assert(icost >= 0);
