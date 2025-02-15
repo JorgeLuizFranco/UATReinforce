@@ -19,12 +19,11 @@
 using namespace uat;
 
 Naive::Naive(uint_t id, const Airspace3d& space, int seed, std::FILE* agent_fp, std::FILE* path_fp) :
-  id_{id}, agent_fp_{agent_fp}, path_fp_{path_fp}
+  id_{id}, airspace(space), agent_fp_{agent_fp}, path_fp_{path_fp}
 {
-  std::mt19937 rng(seed);
-
   std::uniform_real_distribution<value_t> f{50.0, 150.0};
   std::uniform_real_distribution<value_t> s{0.0, 0.2};
+  rng = std::mt19937(seed);
 
   fundamental_ = f(rng);
   sigma_ = s(rng);

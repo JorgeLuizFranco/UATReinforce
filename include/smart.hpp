@@ -48,7 +48,7 @@ private:
 
   torch::Tensor compute_returns();
   std::tuple<std::string, float, bool> can_achieve_mission(uint_t t);
-  void calculate_dist(uint_t time, uat::permit_public_status_fn status);
+  std::vector<float> calculate_dist(uint_t time, uat::permit_public_status_fn status);
   void clean_states(uint_t t);
   void back_propagation();
 
@@ -64,9 +64,7 @@ private:
 
   std::vector<float> curr_state;
   std::vector<float> old_state;
-  std::vector<float> last_action;
   std::vector<float> rewards;
-  std::vector<float> full_dist;
   std::vector<torch::Tensor> log_probs;
 
   uat::uint_t curr_time;

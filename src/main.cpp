@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
   {
     uint_t max_time = 10;
     uint_t n_agents = 10;
-    std::array<uint_t, 3> dimensions = {10, 10, 0};
+    std::array<uint_t, 3> dimensions = {15, 15, 0};
     int seed = -1;
 
     std::string afilename;
@@ -67,7 +67,6 @@ int main(int argc, char *argv[])
     fmt::print(tfile.get(), "TransactionTime,From,To,X,Y,Z,Time,Value\n");
 
   Airspace3d space{opts.dimensions};
-  // int buy_levels = 4;
 
   auto factory = [&, id = uint_t{0}](uint_t t, int seed) mutable -> std::vector<any_agent> {
     if (t >= opts.max_time)
@@ -79,7 +78,7 @@ int main(int argc, char *argv[])
     result.reserve(opts.n_agents + (t == 0 ? 1 : 0));
 
     if (t == 0)
-      result.push_back(Smart(space, 42, 2*100, 100));
+      result.push_back(Smart(space, 42, 225, 225));
 
     for ([[maybe_unused]] const auto _ : cool::indices(opts.n_agents))
       result.push_back(Naive(id++, space, rng(), afile.get(), pfile.get()));

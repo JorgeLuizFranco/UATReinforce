@@ -5,6 +5,7 @@
 
 #include <unordered_set>
 #include <cstdio>
+#include <random>
 
 #include "airspace3d.hpp"
 
@@ -25,6 +26,8 @@ public:
 private:
   uat::uint_t id_;
   Mission mission_;
+  Airspace3d airspace;
+  std::mt19937 rng;
 
   uat::value_t fundamental_;
   uat::value_t sigma_;

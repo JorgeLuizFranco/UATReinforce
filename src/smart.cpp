@@ -34,7 +34,7 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
     stateSize(stateSize),
     actionSize(actionSize)
 {
-  std::mt19937 rng(seed);
+  // std::mt19937 rng(seed);
 
   current_mission = airspace.random_mission(rng());
   std::cout << "tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
@@ -44,15 +44,13 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   qNetwork->to(device);
 
   // airspace dimensions
-  x = 10;
-  y = 10;
+  x = 15;
+  y = 15;
 
   curr_state = std::vector<float>(x * y, 0.0);
   old_state = std::vector<float>(x*y, 0.0);
-  last_action = std::vector<float>();
   rewards = std::vector<float>();
   log_probs = std::vector<torch::Tensor>();
-  full_dist = std::vector<float>(x*y, 1e9f);
   gamma = 0.99;
 
   curr_time = 0;
@@ -63,20 +61,26 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
   using namespace uat::permit_public_status;
   curr_time++;
 
-  calculate_dist(curr_time, status);
+  // Do not bid if can't achieve mission
+  if (std::holds_alternative<unavailable>(status(current_mission.to, curr_time))) {
+    std::cout << "Nao consigo concluir objetivo\n";
+    return;
+  }
+
+  auto state = calculate_dist(curr_time, status);
 
   // Creating state vector to represent slots that I own + distances from shortest path
-  std::vector<float> state;
-  state.reserve(curr_state.size() + full_dist.size());
-  state.insert(state.end(), curr_state.begin(), curr_state.end());
-  state.insert(state.end(), full_dist.begin(), full_dist.end());
+  // std::vector<float> state;
+  // state.reserve(curr_state.size() + dist_from_path.size());
+  // state.insert(state.end(), curr_state.begin(), curr_state.end());
+  // state.insert(state.end(), dist_from_path.begin(), dist_from_path.end());
 
-  last_action = getAction(state);
+  auto bid_values = getAction(state);
 
   // std::cout << "Iniciando ofertas do leilao no tempo " << curr_time << std::endl;
   // for (int i = 0; i < x; i++) {
   //   for (int j = 0; j < y; j++) {
-  //     std::cout << last_action[i*x+j] << " ";
+  //     std::cout << bid_values[i*x+j] << " ";
   //   }
   //   std::cout << std::endl;
   // }
@@ -90,7 +94,7 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
         [](unavailable) { assert(false); },
         [](owned) { assert(false); },
         [&, slot = new_slot, t = curr_time](available) {
-          bid(std::move(slot), t, last_action[i*x+j]);
+          bid(std::move(slot), t, bid_values[i*x+j]);
         },
       }, status(new_slot, curr_time));
     }
@@ -113,10 +117,6 @@ auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) 
 
   // Updating current state
   curr_state[location.pos[0] * x + location.pos[1]] = 1;
-
-  // check whether mission has been completed
-  // then starts a new mission
-  // mission_ = space.random_mission(rng());
 }
 
 auto Smart::on_sold(const Slot3d&, uat::uint_t, uat::value_t v) -> void
@@ -131,18 +131,35 @@ auto Smart::stop(uat::uint_t t, int) -> bool
 
   if (stop) {
     back_propagation();
+    std::cout << "Tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
+    std::cout << "Para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
+    std::cout << "Estou no tempo " << t << std::endl;
+    std::cout << "Gastei " << spent << std::endl;
+
+    // std::vector<int> path(x*y, 0);
+    // for (const auto &[loc, time] : keep_) {
+    //   if (time == t)
+    //     path[loc.pos[0]*x+loc.pos[1]] = 1;
+    // }
+
+    // path[current_mission.from.pos[0]*x+current_mission.from.pos[1]] = 7;
+    // path[current_mission.to.pos[0]*x+current_mission.to.pos[1]] = 6;
+
+    // for (int i = 0; i < x; i++) {
+    //   for (int j = 0; j < y; j++) {
+    //     std::cout << path[i*x+j] << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
 
     log_probs.clear();
     rewards.clear();
     std::fill(curr_state.begin(), curr_state.end(), 0);
     std::fill(old_state.begin(), old_state.end(), 0);
-    std::fill(full_dist.begin(), full_dist.end(), 1e9f);
     keep_.clear();
     spent = 0;
 
     current_mission = space.random_mission(rng());
-    std::cout << "Tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
-    std::cout << "Para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
   }
 
   clean_states(t);
@@ -163,7 +180,7 @@ std::vector<float> Smart::getAction(const std::vector<float>& state) {
   auto [mean, log_std] = qNetwork->forward(stateTensor);
 
   // Calculating std and noise to sample later
-  auto std = torch::exp(log_std).requires_grad_(true);
+  auto std = torch::exp(log_std);
   torch::Tensor noise = torch::randn_like(mean);
 
   // Sampling action
@@ -216,6 +233,7 @@ std::tuple<std::string, float, bool> Smart::can_achieve_mission(uint_t t) {
   float reward = -1;
   std::string msg = "Smart agent did not finish mission yet at time";
   bool stop = false;
+  int num_slots_used = 1;
 
   // BFS algorithm
   while(!toVisit.empty()) {
@@ -225,10 +243,10 @@ std::tuple<std::string, float, bool> Smart::can_achieve_mission(uint_t t) {
     min_dist = std::min(min_dist, current.distance(current_mission.to));
 
     if (min_dist == 0) {
-      reward = 100.0f;
+      reward = 100.0;
       msg = "Smart agent has stopped at time";
       stop = true;
-      break;
+      return {msg, reward, stop};
     }
 
     for(const auto& neighbor : current.neighbors()) {
@@ -236,10 +254,14 @@ std::tuple<std::string, float, bool> Smart::can_achieve_mission(uint_t t) {
         !visited.count(neighbor)) {
           visited.insert(neighbor);
           toVisit.push(neighbor);
+          num_slots_used++;
       }
     }
   }
-  reward = -static_cast<float>(min_dist);
+
+  float dist_penalization =  -static_cast<float>(min_dist);
+  float buy_penalization = -(std::accumulate(curr_state.begin(), curr_state.end(), 0) / num_slots_used);
+  reward = dist_penalization + buy_penalization;
 
   return {msg, reward, stop};
 }
@@ -249,6 +271,7 @@ void Smart::clean_states(uint_t t) {
   for (const auto [location, time] : keep_) {
     if (time <= t) {
       curr_state[location.pos[1] * x + location.pos[0]] = 0;
+      // keep_.erase({location, time});
     }
   }
 }
@@ -278,10 +301,12 @@ void Smart::back_propagation() {
   optimizer->step();
 }
 
-void Smart::calculate_dist(uint_t time, uat::permit_public_status_fn status) {
+std::vector<float> Smart::calculate_dist(uint_t time, uat::permit_public_status_fn status) {
   using namespace uat::permit_public_status;
   auto from = current_mission.from;
   auto to = current_mission.to;
+  std::vector<float> full_dist(x*y, x+y);
+
 
   std::queue<Slot3d> q;
   auto short_path = from.shortest_path(to, rng());
@@ -313,4 +338,6 @@ void Smart::calculate_dist(uint_t time, uat::permit_public_status_fn status) {
       }
     }
   }
+
+  return full_dist;
 }
