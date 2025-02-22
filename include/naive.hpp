@@ -36,6 +36,7 @@ private:
   uat::uint_t last_time_ = std::numeric_limits<uat::uint_t>::max();
 
   std::unordered_set<uat::permit<Slot3d>> keep_, onsale_;
+  uat::value_t spent_ = 0;
 
   uat::uint_t niter_ = 0;
 

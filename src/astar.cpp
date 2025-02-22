@@ -89,7 +89,7 @@ auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t b
         if (std::holds_alternative<unavailable>(status(slot, t)))
           return {};
         solution.push_back({slot, t});
-        ++t;
+        // ++t; // Buying every slot in the same time
       }
 
       return solution;
@@ -177,7 +177,7 @@ auto astar(const Slot3d& from, const Slot3d& to, uint_t t0, uint_t th, value_t b
       const auto& before = current.location == from ? from : came_from.find(current)->second.location;
       const auto turn = current.location.turn(before, nslot);
       const auto climb = current.location.climb(nslot);
-      try_path(current, {std::move(nslot), current.time + 1}, turn, climb);
+      try_path(current, {std::move(nslot), current.time}, turn, climb);
     }
   }
 

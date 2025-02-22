@@ -115,9 +115,10 @@ auto Naive::ask_phase(uint_t, ask_fn ask, permit_public_status_fn, int) -> void
   onsale_.clear();
 }
 
-auto Naive::on_bought(const Slot3d& s, uint_t t, value_t) -> void
+auto Naive::on_bought(const Slot3d& s, uint_t t, value_t v) -> void
 {
   keep_.insert({s, t});
+  spent_ += v;
 }
 
 auto Naive::stop(uint_t t, int) -> bool
@@ -136,12 +137,12 @@ auto Naive::stop(uint_t t, int) -> bool
 
   if (agent_fp_)
   {
-    fmt::print(agent_fp_, "{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+    fmt::print(agent_fp_, "{},{},{},{},{},{},{},{},{},{},{},{},{},{}, {}\n",
         id_, t + 1 - niter_, niter_, congestion_param_,
         mission_.from.pos[0], mission_.from.pos[1], mission_.from.pos[2],
         mission_.to.pos[0], mission_.to.pos[1], mission_.to.pos[2],
         fundamental_, sigma_,
-        mission_.distance(), keep_.size() - 1.0);
+        mission_.distance(), keep_.size() - 1.0, spent_/(keep_.size()-1.0));
   }
 
   return true;
