@@ -28,7 +28,7 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
     rng(seed),
     space(airspace),
     device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU),
-    qNetwork(std::make_shared<NeuralNetwork>(stateSize, 64, actionSize)),
+    qNetwork(std::make_shared<NeuralNetwork>(stateSize, actionSize, 5, 1)),
     optimizer(std::make_unique<torch::optim::Adam>(qNetwork->parameters(), torch::optim::AdamOptions(1e-3))),
     learning_rate(learning_rate),
     stateSize(stateSize),
@@ -47,6 +47,8 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   x = 15;
   y = 15;
 
+  faturamento_bruto = 150.0;
+
   curr_state = std::vector<float>(x * y, 0.0);
   old_state = std::vector<float>(x*y, 0.0);
   rewards = std::vector<float>();
@@ -60,43 +62,83 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
 {
   using namespace uat::permit_public_status;
   curr_time++;
+  int time_stamps = 5;
 
-  // Do not bid if can't achieve mission
-  if (std::holds_alternative<unavailable>(status(current_mission.to, curr_time))) {
-    std::cout << "Nao consigo concluir objetivo\n";
+  // Do not bid if can't achieve mission in all possible times
+  int count = 0;
+  for (int i = 0; i < time_stamps; i++) {
+    if (std::holds_alternative<unavailable>(status(current_mission.to, curr_time+i))) {
+      count++;
+    }
+  }
+  if (count == time_stamps) {
+    fmt::print("N consigo cumprir objetivo\n");
     return;
   }
 
-  auto state = calculate_dist(curr_time, status);
 
-  // Creating state vector to represent slots that I own + distances from shortest path
-  // std::vector<float> state;
-  // state.reserve(curr_state.size() + dist_from_path.size());
-  // state.insert(state.end(), curr_state.begin(), curr_state.end());
-  // state.insert(state.end(), dist_from_path.begin(), dist_from_path.end());
+  auto state_t1 = calculate_dist(curr_time, status);
+  auto state_t2 = calculate_dist(curr_time+1, status);
+  auto state_t3 = calculate_dist(curr_time+2, status);
+  auto state_t4 = calculate_dist(curr_time+3, status);
+  auto state_t5 = calculate_dist(curr_time+4, status);
+
+  std::vector<float> state;
+  state.reserve(x*y*time_stamps);
+  for (int i = 0; i < x; i++) {
+    for (int j = 0; j < y; j++) {
+      state.push_back(state_t1[i*x+j]);
+    }
+  }
+  for (int i = 0; i < x; i++) {
+    for (int j = 0; j < y; j++) {
+      state.push_back(state_t2[i*x+j]);
+    }
+  }
+  for (int i = 0; i < x; i++) {
+    for (int j = 0; j < y; j++) {
+      state.push_back(state_t3[i*x+j]);
+    }
+  }
+  for (int i = 0; i < x; i++) {
+    for (int j = 0; j < y; j++) {
+      state.push_back(state_t4[i*x+j]);
+    }
+  }
+  for (int i = 0; i < x; i++) {
+    for (int j = 0; j < y; j++) {
+      state.push_back(state_t5[i*x+j]);
+    }
+  }
+
+  // std::cout << "Antes da rede neural\n";
 
   auto bid_values = getAction(state);
 
   // std::cout << "Iniciando ofertas do leilao no tempo " << curr_time << std::endl;
-  // for (int i = 0; i < x; i++) {
-  //   for (int j = 0; j < y; j++) {
-  //     std::cout << bid_values[i*x+j] << " ";
+  // for (int plus_time = 0; plus_time < 5; plus_time++) {
+  //   for (int i = 0; i < x; i++) {
+  //     for (int j = 0; j < y; j++) {
+  //       std::cout << bid_values[plus_time*x*y + i*x + j] << " ";
+  //     }
+  //     std::cout << std::endl;
   //   }
-  //   std::cout << std::endl;
+  //   std::cout << "--------------------" << std::endl;
   // }
+  for (int plus_time = 0; plus_time < 5; plus_time++) {
+    for (int i = 0; i < x; i++) {
+      for (int j = 0; j < y; j++) {
+        Slot3d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j), 0}};
 
-  for (int i = 0; i < x; i++) {
-    for (int j = 0; j < y; j++) {
-      Slot3d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j), 0}};
-
-      // Bidding
-      std::visit(cool::compose{
-        [](unavailable) { assert(false); },
-        [](owned) { assert(false); },
-        [&, slot = new_slot, t = curr_time](available) {
-          bid(std::move(slot), t, bid_values[i*x+j]);
-        },
-      }, status(new_slot, curr_time));
+        // Bidding
+        std::visit(cool::compose{
+          [](unavailable) { assert(false); },
+          [](owned) { assert(false); },
+          [&, slot = new_slot, t = curr_time](available) {
+            bid(std::move(slot), t, bid_values[plus_time*x*y + i*x + j]);
+          },
+        }, status(new_slot, curr_time+plus_time));
+      }
     }
   }
 
@@ -126,15 +168,18 @@ auto Smart::on_sold(const Slot3d&, uat::uint_t, uat::value_t v) -> void
 
 auto Smart::stop(uat::uint_t t, int) -> bool
 {
+  // std::cout << "Verificando parada\n";
   auto [msg, reward, stop] = can_achieve_mission(t);
   rewards.push_back(reward);
+  // std::cout << "passei do achieve mission\n";
 
   if (stop) {
     back_propagation();
-    std::cout << "Tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
-    std::cout << "Para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
+    // std::cout << "Tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
+    // std::cout << "Para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
+    std::cout << "Tenho que percorrer a distancia: " << current_mission.from.distance(current_mission.to) << std::endl;
     std::cout << "Estou no tempo " << t << std::endl;
-    std::cout << "Gastei " << spent << std::endl;
+    std::cout << "Gastei " << spent << " | Média por slot " << spent/current_mission.from.distance(current_mission.to) << std::endl;
 
     // std::vector<int> path(x*y, 0);
     // for (const auto &[loc, time] : keep_) {
@@ -173,14 +218,16 @@ std::vector<float> Smart::getAction(const std::vector<float>& state) {
   torch::AutoGradMode enable_grad(true);
 
   // Convert state to tensor
-  torch::Tensor stateTensor = torch::tensor(state, torch::dtype(torch::kFloat32))
-                              .to(device);
+  int time_stamps = 5;
+  torch::Tensor stateTensor = torch::tensor(state).reshape({1, 1, time_stamps, x, y});
+  // std::cout << "Tensor:\n" << stateTensor.sizes() << std::endl;
 
   // Forward pass
-  auto [mean, log_std] = qNetwork->forward(stateTensor);
+  auto [log_mean, log_std] = qNetwork->forward(stateTensor);
 
   // Calculating std and noise to sample later
   auto std = torch::exp(log_std);
+  auto mean = torch::exp(log_mean);
   torch::Tensor noise = torch::randn_like(mean);
 
   // Sampling action
@@ -188,9 +235,10 @@ std::vector<float> Smart::getAction(const std::vector<float>& state) {
 
   // Log probability calculation
   torch::Tensor log_prob = -0.5 * (
-      torch::sum(torch::pow(noise, 2), -1) +
-      2 * torch::sum(log_std, -1) +
-      mean.size(-1) * std::log(2 * M_PI)
+    torch::sum(torch::pow(noise, 2), -1) +
+    2 * torch::sum(log_std, -1) +
+    // Simply use the scalar value directly
+    mean.size(-1) * std::log(2 * M_PI)
   );
 
   // Store log_prob
@@ -230,7 +278,7 @@ std::tuple<std::string, float, bool> Smart::can_achieve_mission(uint_t t) {
   visited.insert(current_mission.from);
 
   uint_t min_dist = 1e9;
-  float reward = -1;
+  float reward = -spent;
   std::string msg = "Smart agent did not finish mission yet at time";
   bool stop = false;
   int num_slots_used = 1;
@@ -243,7 +291,7 @@ std::tuple<std::string, float, bool> Smart::can_achieve_mission(uint_t t) {
     min_dist = std::min(min_dist, current.distance(current_mission.to));
 
     if (min_dist == 0) {
-      reward = 100.0;
+      reward += faturamento_bruto * current_mission.from.distance(current_mission.to);
       msg = "Smart agent has stopped at time";
       stop = true;
       return {msg, reward, stop};
@@ -259,9 +307,9 @@ std::tuple<std::string, float, bool> Smart::can_achieve_mission(uint_t t) {
     }
   }
 
-  float dist_penalization =  -static_cast<float>(min_dist);
-  float buy_penalization = -(std::accumulate(curr_state.begin(), curr_state.end(), 0) / num_slots_used);
-  reward = dist_penalization + buy_penalization;
+  // float dist_penalization =  -static_cast<float>(min_dist);
+  // float buy_penalization = -(std::accumulate(curr_state.begin(), curr_state.end(), 0) / num_slots_used);
+  // reward = dist_penalization + buy_penalization;
 
   return {msg, reward, stop};
 }
@@ -307,12 +355,11 @@ std::vector<float> Smart::calculate_dist(uint_t time, uat::permit_public_status_
   auto to = current_mission.to;
   std::vector<float> full_dist(x*y, x+y);
 
-
   std::queue<Slot3d> q;
   auto short_path = from.shortest_path(to, rng());
   for (const auto&p : short_path) {
     auto idx = p.pos[0]*x + p.pos[1];
-    full_dist[idx] = 0.0f;
+    full_dist[idx] = 1.0f;
     q.push(p);
   }
 
@@ -334,7 +381,13 @@ std::vector<float> Smart::calculate_dist(uint_t time, uat::permit_public_status_
     for (int j = 0; j < y; j++) {
       Slot3d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j), 0}};
       if (std::holds_alternative<unavailable>(status(new_slot, time))) {
-        full_dist[i*x+j] = 1e9f;
+        full_dist[i*x+j] = 1/(x+y);
+      }
+      else if (std::holds_alternative<owned>(status(new_slot, time))) {
+        full_dist[i*x+j] = 1;
+      }
+      else {
+        full_dist[i*x+j] = 1/(full_dist[i*x+j]);
       }
     }
   }

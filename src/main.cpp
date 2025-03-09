@@ -18,9 +18,9 @@ int main(int argc, char *argv[])
 
   struct
   {
-    uint_t max_time = 100;
-    uint_t n_agents = 10;
-    std::array<uint_t, 3> dimensions = {10, 10, 0};
+    uint_t max_time = 100000;
+    uint_t n_agents = 7;
+    std::array<uint_t, 3> dimensions = {15, 15, 0};
     int seed = -1;
 
     std::string afilename;
@@ -75,12 +75,12 @@ int main(int argc, char *argv[])
     std::mt19937 rng(seed);
 
     std::vector<any_agent> result;
-    // result.reserve(opts.n_agents + (t == 0 ? 1 : 0));
-    result.reserve(opts.n_agents);
+    result.reserve(opts.n_agents + (t == 0 ? 1 : 0));
+    // result.reserve(opts.n_agents);
 
 
-    // if (t == 0)
-    //   result.push_back(Smart(space, 42, 225, 225));
+    if (t == 0)
+      result.push_back(Smart(space, 42, 225, 225));
 
 
     for ([[maybe_unused]] const auto _ : cool::indices(opts.n_agents)){
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
   simulate<Slot3d>({
     .factory = std::move(factory),
     .time_window = std::nullopt,
-    .stop_criterion = stop_criterion::time_threshold_t{10},
+    .stop_criterion = stop_criterion::time_threshold_t{10000},
     .trade_callback = tfile ? [&](trade_info_t<Slot3d> trade) {
       if (trade.from != no_owner)
         fmt::print(tfile.get(), "{},{},{},{},{},{},{},{}\n",
@@ -109,10 +109,10 @@ int main(int argc, char *argv[])
                    trade.location.pos[0], trade.location.pos[1], trade.location.pos[2],
                    trade.time, trade.value);
     } : std::function<void(trade_info_t<Slot3d>)>(),
-    .simulation_callback = [&](uint_t iteration, const agents_private_status_t& status,
-                             permit_private_status_fn permit_status_fn) -> void {
-      // fmt::print("Iteration: {} | Active Agents: {}\n", iteration, status.active_count());
-    },
+    // .simulation_callback = [&](uint_t iteration, const agents_private_status_t& status,
+    //                          permit_private_status_fn permit_status_fn) -> void {
+    //   fmt::print("Iteration: {} | Active Agents: {}\n", iteration, status.active_count());
+    // },
     .seed = opts.seed < 0 ? std::random_device{}() : opts.seed,
   });
 }

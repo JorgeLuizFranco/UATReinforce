@@ -62,6 +62,8 @@ private:
   int x;
   int y;
 
+  float faturamento_bruto;
+
   std::vector<float> curr_state;
   std::vector<float> old_state;
   std::vector<float> rewards;

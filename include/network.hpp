@@ -15,9 +15,13 @@
 
 class NeuralNetwork : public torch::nn::Module {
 private:
-    torch::nn::Linear layer1, layer2, outputLayer, output_log_std;
+    torch::nn::Sequential conv_layers{nullptr};
+    torch::nn::AdaptiveAvgPool3d adaptive_pool{nullptr};
+    torch::nn::Sequential decoder{nullptr};
+    int action_size;
+    int state_size;
 
 public:
-    NeuralNetwork(int stateSize, int hiddenSize, int actionSize);
-    std::pair<torch::Tensor, torch::Tensor> forward(torch::Tensor x);
+    NeuralNetwork(int stateSize, int actionSize, int time_steps, int input_channels);
+    std::tuple<torch::Tensor, torch::Tensor> forward(torch::Tensor x);
 };

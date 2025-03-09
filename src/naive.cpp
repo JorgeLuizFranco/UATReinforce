@@ -145,6 +145,9 @@ auto Naive::stop(uint_t t, int) -> bool
         mission_.distance(), keep_.size() - 1.0, spent_/(keep_.size()-1.0));
   }
 
+  // printf("Agent %ld at time %ld\n", id_, t);
+
+
   return true;
 }
 
