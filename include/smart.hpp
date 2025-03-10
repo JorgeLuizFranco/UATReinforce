@@ -70,6 +70,7 @@ private:
   std::vector<torch::Tensor> log_probs;
 
   uat::uint_t curr_time;
+  // std::unique_ptr<FILE, void (*)(FILE *)> afile;
 };
 
 static_assert(uat::agent_compatible<Smart>);

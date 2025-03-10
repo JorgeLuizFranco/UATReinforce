@@ -2,6 +2,7 @@
 #include <c10/core/ScalarType.h>
 #include <cool/compose.hpp>
 #include <cool/indices.hpp>
+#include <cool/ccreate.hpp>
 #include <jules/base/numeric.hpp>
 #include <range/v3/view/transform.hpp>
 
@@ -47,7 +48,7 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   x = 15;
   y = 15;
 
-  faturamento_bruto = 150.0;
+  faturamento_bruto = 110.0;
 
   curr_state = std::vector<float>(x * y, 0.0);
   old_state = std::vector<float>(x*y, 0.0);
@@ -56,6 +57,9 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
   gamma = 0.99;
 
   curr_time = 0;
+
+  std::cout << "Id,StartTime,Iterations,CongestionParam,FromX,FromY,FromZ,ToX,ToY,ToZ,Fundamental,Sigma,MinDistance,Distance,PricePerSlot,TotalSpent,PricePerDistance\n";
+
 }
 
 auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
@@ -177,10 +181,16 @@ auto Smart::stop(uat::uint_t t, int) -> bool
     back_propagation();
     // std::cout << "Tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
     // std::cout << "Para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
-    std::cout << "Tenho que percorrer a distancia: " << current_mission.from.distance(current_mission.to) << std::endl;
-    std::cout << "Estou no tempo " << t << std::endl;
-    std::cout << "Gastei " << spent << " | Média por slot " << spent/current_mission.from.distance(current_mission.to) << std::endl;
+    // std::cout << "Tenho que percorrer a distancia: " << current_mission.from.distance(current_mission.to) << std::endl;
+    // std::cout << "Estou no tempo " << t << std::endl;
+    // std::cout << "Gastei " << spent << " | Média por slot " << spent/current_mission.from.distance(current_mission.to) << std::endl;
 
+    fmt::print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+      0, 0, curr_time, 999,
+      current_mission.from.pos[0], current_mission.from.pos[1], current_mission.from.pos[2],
+      current_mission.to.pos[0], current_mission.to.pos[1], current_mission.to.pos[2],
+      999, 999,
+      current_mission.distance(), keep_.size() - 1.0, spent/(keep_.size()-1.0), spent, spent/current_mission.distance());
     // std::vector<int> path(x*y, 0);
     // for (const auto &[loc, time] : keep_) {
     //   if (time == t)
