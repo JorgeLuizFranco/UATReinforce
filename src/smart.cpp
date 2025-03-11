@@ -37,8 +37,8 @@ Smart::Smart(const Airspace2d& airspace, int seed, size_t stateSize, size_t acti
   // std::mt19937 rng(seed);
 
   current_mission = airspace.random_mission(rng());
-  std::cout << "tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
-  std::cout << "para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
+  std::cerr << "tenho que ir de " << current_mission.from.pos[0] << " " << current_mission.from.pos[1] << std::endl;
+  std::cerr << "para " << current_mission.to.pos[0] << " " << current_mission.to.pos[1] << std::endl;
 
   // deep q learning
   qNetwork->to(device);
@@ -75,7 +75,7 @@ auto Smart::bid_phase(uat::uint_t, uat::bid_fn bid, uat::permit_public_status_fn
     }
   }
   if (count == time_stamps) {
-    fmt::print("N consigo cumprir objetivo\n");
+    fmt::print(stderr, "N consigo cumprir objetivo\n");
     return;
   }
 
@@ -186,8 +186,8 @@ auto Smart::stop(uat::uint_t t, int) -> bool
 
     fmt::print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
       0, 0, curr_time, 999,
-      current_mission.from.pos[0], current_mission.from.pos[1], current_mission.from.pos[2],
-      current_mission.to.pos[0], current_mission.to.pos[1], current_mission.to.pos[2],
+      current_mission.from.pos[0], current_mission.from.pos[1], 0,
+      current_mission.to.pos[0], current_mission.to.pos[1], 0,
       999, 999,
       current_mission.distance(), keep_.size() - 1.0, spent/(keep_.size()-1.0), spent, spent/current_mission.distance());
     // std::vector<int> path(x*y, 0);

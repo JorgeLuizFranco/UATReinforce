@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
     } : std::function<void(trade_info_t<Slot2d>)>(),
     .simulation_callback = [&](uint_t iteration, const agents_private_status_t& status,
                              permit_private_status_fn) -> void {
-      fmt::print("Iteration: {} | Active Agents: {}\n", iteration, status.active_count());
+      fmt::print(stderr, "Iteration: {} | Active Agents: {}\n", iteration, status.active_count());
     },
     .seed = opts.seed < 0 ? std::random_device{}() : opts.seed,
   });
