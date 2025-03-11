@@ -131,7 +131,7 @@ auto Smart::bid_phase(uat::uint_t, uat::bid_fn bid, uat::permit_public_status_fn
   for (int plus_time = 0; plus_time < 5; plus_time++) {
     for (int i = 0; i < x; i++) {
       for (int j = 0; j < y; j++) {
-        Slot2d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j)}};
+        Slot2d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j)}, {static_cast<uint_t>(x), static_cast<uint_t>(y)}};
 
         // Bidding
         std::visit(cool::compose{
@@ -388,15 +388,15 @@ std::vector<float> Smart::calculate_dist(uint_t time, uat::permit_public_status_
 
   for (int i = 0; i < x; i++) {
     for (int j = 0; j < y; j++) {
-      Slot2d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j)}};
+      Slot2d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j)}, {static_cast<uint_t>(x), static_cast<uint_t>(y)}};
       if (std::holds_alternative<unavailable>(status(new_slot, time))) {
-        full_dist[i*x+j] = 1/(x+y);
+        full_dist[i*x+j] = 1.0/(x+y);
       }
       else if (std::holds_alternative<owned>(status(new_slot, time))) {
-        full_dist[i*x+j] = 1;
+        full_dist[i*x+j] = 1.0;
       }
       else {
-        full_dist[i*x+j] = 1/(full_dist[i*x+j]);
+        full_dist[i*x+j] = 1.0/(full_dist[i*x+j]);
       }
     }
   }

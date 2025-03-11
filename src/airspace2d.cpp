@@ -49,6 +49,8 @@ auto Slot2d::neighbors() const -> std::vector<Slot2d>
 
 auto Slot2d::hash() const -> std::size_t
 {
+  assert(pos[0] < dim[0]);
+  assert(pos[1] < dim[1]);
   return pos[0] * dim[1] + pos[1];
 }
 
