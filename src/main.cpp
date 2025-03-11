@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
   struct
   {
     uint_t max_time = 100000;
-    uint_t n_agents = 20;
+    uint_t n_agents = 10;
     std::array<uint_t, 2> dimensions = {15, 15};
     int seed = -1;
     bool dummy = false;
