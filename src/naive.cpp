@@ -5,13 +5,13 @@
 #include <cool/compose.hpp>
 #include <cool/indices.hpp>
 #include <jules/base/numeric.hpp>
-#include <range/v3/view/transform.hpp>
 
 #include <cstdio>
 #include <iterator>
 #include <cassert>
 #include <limits>
 #include <random>
+#include <ranges>
 #include <unordered_set>
 #include <utility>
 #include <variant>
@@ -40,7 +40,7 @@ auto Naive::bid_phase(uint_t t, bid_fn bid, permit_public_status_fn status, int 
 
   onsale_ = std::exchange(keep_, {});
   const auto t_heuristic =
-    jules::max(onsale_ | ranges::views::transform([](const permit<Slot3d>& s) { return s.time; }));
+    jules::max(onsale_ | std::views::transform([](const permit<Slot3d>& s) { return s.time; }));
 
   // check previous path
   if (last_time_ != std::numeric_limits<uint_t>::max())
@@ -70,8 +70,9 @@ auto Naive::bid_phase(uint_t t, bid_fn bid, permit_public_status_fn status, int 
       tries.clear();
       tries.reserve(congestion_param_ - start + 1);
 
-      ranges::copy(ranges::view::closed_iota(start, congestion_param_), ranges::back_inserter(tries));
-      ranges::shuffle(tries, rng);
+      using namespace std::ranges;
+      copy(views::iota(start, congestion_param_ + 1), std::back_inserter(tries));
+      shuffle(tries, rng);
 
       for (const auto wait : tries)
       {

@@ -4,7 +4,6 @@
 #include <cool/indices.hpp>
 #include <cool/ccreate.hpp>
 #include <jules/base/numeric.hpp>
-#include <range/v3/view/transform.hpp>
 
 #include <cstdio>
 #include <iterator>
