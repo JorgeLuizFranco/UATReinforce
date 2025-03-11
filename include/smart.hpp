@@ -3,29 +3,27 @@
 #include <uat/type.hpp>
 #include <uat/agent.hpp>
 
-#include <limits>
 #include <cstdio>
-#include <map>
 #include <random>
 #include <vector>
 #include <memory>
 
-#include "airspace3d.hpp"
+#include "airspace2d.hpp"
 
 #include "network.hpp"
 
-class Smart : public uat::agent<Slot3d>
+class Smart : public uat::agent<Slot2d>
 {
 public:
-  Smart(const Airspace3d&, int, size_t stateSize, size_t actionSize, float learning_rate = 0.001);
+  Smart(const Airspace2d&, int, size_t stateSize, size_t actionSize, float learning_rate = 0.001);
 
   auto bid_phase(uat::uint_t, uat::bid_fn, uat::permit_public_status_fn, int) -> void override;
 
   auto ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, int) -> void override;
 
-  auto on_bought(const Slot3d&, uat::uint_t, uat::value_t) -> void override;
+  auto on_bought(const Slot2d&, uat::uint_t, uat::value_t) -> void override;
 
-  auto on_sold(const Slot3d&, uat::uint_t, uat::value_t) -> void override;
+  auto on_sold(const Slot2d&, uat::uint_t, uat::value_t) -> void override;
 
   auto stop(uat::uint_t, int) -> bool override;
 
@@ -39,8 +37,8 @@ private:
   Mission current_mission;
   uat::value_t spent = 0;
   std::mt19937 rng;
-  std::unordered_set<uat::permit<Slot3d>> keep_, onsale_;
-  Airspace3d space;
+  std::unordered_set<uat::permit<Slot2d>> keep_, onsale_;
+  Airspace2d space;
 
   torch::Device device;  // Simple initialization, OK in header
   std::shared_ptr<NeuralNetwork> qNetwork; // Default nullptr, OK in header

@@ -1,4 +1,4 @@
-#include "airspace3d.hpp"
+#include "airspace2d.hpp"
 #include "naive.hpp"
 #include "smart.hpp"
 
@@ -19,9 +19,10 @@ int main(int argc, char *argv[])
   struct
   {
     uint_t max_time = 100000;
-    uint_t n_agents = 10;
-    std::array<uint_t, 3> dimensions = {15, 15, 0};
+    uint_t n_agents = 20;
+    std::array<uint_t, 2> dimensions = {15, 15};
     int seed = -1;
+    bool dummy = false;
 
     std::string afilename;
     std::string tfilename;
@@ -32,6 +33,7 @@ int main(int argc, char *argv[])
   app.add_option("-n,--agents", opts.n_agents, "Number of agents generated each epoch");
   app.add_option("-d,--dimensions", opts.dimensions, "Airspace dimensions");
   app.add_option("-s,--seed", opts.seed, "Random seed (random_device if < 0)");
+  app.add_option("--dummy", opts.dummy, "Do not instantiate smart agent");
 
   app.add_option("-a,--agent-data", opts.afilename, "Save agent data to file");
   app.add_option("-p,--path-data", opts.pfilename, "Save agent path data to file");
@@ -66,7 +68,7 @@ int main(int argc, char *argv[])
   if (tfile)
     fmt::print(tfile.get(), "TransactionTime,From,To,X,Y,Z,Time,Value\n");
 
-  Airspace3d space{opts.dimensions};
+  Airspace2d space{opts.dimensions};
 
   auto factory = [&, id = uint_t{0}](uint_t t, int seed) mutable -> std::vector<any_agent> {
     if (t >= opts.max_time)
@@ -76,12 +78,9 @@ int main(int argc, char *argv[])
 
     std::vector<any_agent> result;
     result.reserve(opts.n_agents + (t == 0 ? 1 : 0));
-    // result.reserve(opts.n_agents);
 
-
-    if (t == 0)
+    if (t == 0 and not opts.dummy)
       result.push_back(Smart(space, 42, 225, 225));
-
 
     for ([[maybe_unused]] const auto _ : cool::indices(opts.n_agents)){
       // fmt::print("Factory: Creating agent {} at time {}\n", id, t);
@@ -93,11 +92,11 @@ int main(int argc, char *argv[])
     return result;
   };
 
-  simulate<Slot3d>({
+  simulate<Slot2d>({
     .factory = std::move(factory),
     .time_window = std::nullopt,
-    .stop_criterion = stop_criterion::time_threshold_t{10000},
-    .trade_callback = tfile ? [&](trade_info_t<Slot3d> trade) {
+    .stop_criterion = stop_criterion::time_threshold_t{opts.max_time},
+    .trade_callback = tfile ? [&](trade_info_t<Slot2d> trade) {
       if (trade.from != no_owner)
         fmt::print(tfile.get(), "{},{},{},{},{},{},{},{}\n",
                    trade.transaction_time, trade.from, trade.to,
@@ -108,11 +107,11 @@ int main(int argc, char *argv[])
                    trade.transaction_time, trade.to,
                    trade.location.pos[0], trade.location.pos[1], trade.location.pos[2],
                    trade.time, trade.value);
-    } : std::function<void(trade_info_t<Slot3d>)>(),
-    // .simulation_callback = [&](uint_t iteration, const agents_private_status_t& status,
-    //                          permit_private_status_fn permit_status_fn) -> void {
-    //   fmt::print("Iteration: {} | Active Agents: {}\n", iteration, status.active_count());
-    // },
+    } : std::function<void(trade_info_t<Slot2d>)>(),
+    .simulation_callback = [&](uint_t iteration, const agents_private_status_t& status,
+                             permit_private_status_fn) -> void {
+      fmt::print("Iteration: {} | Active Agents: {}\n", iteration, status.active_count());
+    },
     .seed = opts.seed < 0 ? std::random_device{}() : opts.seed,
   });
 }

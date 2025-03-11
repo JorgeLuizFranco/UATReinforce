@@ -23,7 +23,7 @@
 
 using namespace uat;
 
-Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t actionSize, float learning_rate)
+Smart::Smart(const Airspace2d& airspace, int seed, size_t stateSize, size_t actionSize, float learning_rate)
   : current_mission(airspace.random_mission(seed)),
     rng(seed),
     space(airspace),
@@ -61,7 +61,7 @@ Smart::Smart(const Airspace3d& airspace, int seed, size_t stateSize, size_t acti
 
 }
 
-auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_status_fn status, int seed) -> void
+auto Smart::bid_phase(uat::uint_t, uat::bid_fn bid, uat::permit_public_status_fn status, int) -> void
 {
   using namespace uat::permit_public_status;
   curr_time++;
@@ -131,13 +131,13 @@ auto Smart::bid_phase(uat::uint_t time, uat::bid_fn bid, uat::permit_public_stat
   for (int plus_time = 0; plus_time < 5; plus_time++) {
     for (int i = 0; i < x; i++) {
       for (int j = 0; j < y; j++) {
-        Slot3d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j), 0}};
+        Slot2d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j)}};
 
         // Bidding
         std::visit(cool::compose{
-          [](unavailable) { assert(false); },
-          [](owned) { assert(false); },
-          [&, slot = new_slot, t = curr_time](available) {
+          [](unavailable) { /* do nothing */ },
+          [](owned) { /* do nothing */ },
+          [&, slot = new_slot, t = curr_time+plus_time](available) {
             bid(std::move(slot), t, bid_values[plus_time*x*y + i*x + j]);
           },
         }, status(new_slot, curr_time+plus_time));
@@ -152,7 +152,7 @@ auto Smart::ask_phase(uat::uint_t, uat::ask_fn, uat::permit_public_status_fn, in
 {
 }
 
-auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) -> void
+auto Smart::on_bought(const Slot2d& location, uat::uint_t time, uat::value_t v) -> void
 {
   spent += v;
 
@@ -164,7 +164,7 @@ auto Smart::on_bought(const Slot3d& location, uat::uint_t time, uat::value_t v) 
   curr_state[location.pos[0] * x + location.pos[1]] = 1;
 }
 
-auto Smart::on_sold(const Slot3d&, uat::uint_t, uat::value_t v) -> void
+auto Smart::on_sold(const Slot2d&, uat::uint_t, uat::value_t v) -> void
 {
   spent -= v;
 }
@@ -280,8 +280,8 @@ torch::Tensor Smart::compute_returns() {
 }
 
 std::tuple<std::string, float, bool> Smart::can_achieve_mission(uint_t t) {
-  std::queue<Slot3d> toVisit;
-  std::unordered_set<Slot3d> visited;
+  std::queue<Slot2d> toVisit;
+  std::unordered_set<Slot2d> visited;
 
   toVisit.push(current_mission.from);
   visited.insert(current_mission.from);
@@ -364,7 +364,7 @@ std::vector<float> Smart::calculate_dist(uint_t time, uat::permit_public_status_
   auto to = current_mission.to;
   std::vector<float> full_dist(x*y, x+y);
 
-  std::queue<Slot3d> q;
+  std::queue<Slot2d> q;
   auto short_path = from.shortest_path(to, rng());
   for (const auto&p : short_path) {
     auto idx = p.pos[0]*x + p.pos[1];
@@ -388,7 +388,7 @@ std::vector<float> Smart::calculate_dist(uint_t time, uat::permit_public_status_
 
   for (int i = 0; i < x; i++) {
     for (int j = 0; j < y; j++) {
-      Slot3d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j), 0}};
+      Slot2d new_slot{{static_cast<uint_t>(i), static_cast<uint_t>(j)}};
       if (std::holds_alternative<unavailable>(status(new_slot, time))) {
         full_dist[i*x+j] = 1/(x+y);
       }

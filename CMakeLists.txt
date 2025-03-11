@@ -10,7 +10,7 @@ find_package(Torch REQUIRED)
 
 add_executable(uatsim
   src/main.cpp
-  src/airspace3d.cpp
+  src/airspace2d.cpp
   src/astar.cpp
   src/naive.cpp
   src/smart.cpp
