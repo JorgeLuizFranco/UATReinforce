@@ -66,6 +66,7 @@ auto Smart::bid_phase(uat::uint_t, uat::bid_fn bid, uat::permit_public_status_fn
   using namespace uat::permit_public_status;
   curr_time++;
   int time_stamps = 5;
+  // fmt::print(stderr, "estpu no tempo {}\n", curr_time);
 
   // Do not bid if can't achieve mission in all possible times
   int count = 0;
@@ -75,7 +76,7 @@ auto Smart::bid_phase(uat::uint_t, uat::bid_fn bid, uat::permit_public_status_fn
     }
   }
   if (count == time_stamps) {
-    fmt::print(stderr, "N consigo cumprir objetivo\n");
+    // fmt::print(stderr, "N consigo cumprir objetivo\n");
     return;
   }
 
@@ -114,9 +115,8 @@ auto Smart::bid_phase(uat::uint_t, uat::bid_fn bid, uat::permit_public_status_fn
     }
   }
 
-  // std::cout << "Antes da rede neural\n";
-
   auto bid_values = getAction(state);
+  // std::cout << std::accumulate(bid_values.begin(), bid_values.end(), 0)/(225*5) << std::endl;
 
   // std::cout << "Iniciando ofertas do leilao no tempo " << curr_time << std::endl;
   // for (int plus_time = 0; plus_time < 5; plus_time++) {

@@ -7,33 +7,33 @@ NeuralNetwork::NeuralNetwork(int stateSize, int actionSize, int time_steps, int 
 
       conv_layers = torch::nn::Sequential(
         // First conv layer - preserve time dimension by using padding
-        torch::nn::Conv3d(torch::nn::Conv3dOptions(input_channels, 8, {3, 3, 3}).padding({1, 1, 1})),
+        torch::nn::Conv3d(torch::nn::Conv3dOptions(input_channels, 8, {5, 3, 3}).padding({2, 1, 1})),
         torch::nn::ReLU(),
         torch::nn::BatchNorm3d(8),
 
         // Second conv layer - preserve time dimension
-        torch::nn::Conv3d(torch::nn::Conv3dOptions(8, 16, {3, 3, 3}).padding({1, 1, 1})),
+        torch::nn::Conv3d(torch::nn::Conv3dOptions(8, 16, {5, 3, 3}).padding({2, 1, 1})),
         torch::nn::ReLU(),
         torch::nn::BatchNorm3d(16),
 
         // Third conv layer - preserve time dimension
-        torch::nn::Conv3d(torch::nn::Conv3dOptions(16, 32, {3, 3, 3}).padding({1, 1, 1})),
+        torch::nn::Conv3d(torch::nn::Conv3dOptions(16, 32, {5, 3, 3}).padding({2, 1, 1})),
         torch::nn::ReLU(),
         torch::nn::BatchNorm3d(32)
       );
 
 
       decoder = torch::nn::Sequential(
-        torch::nn::Conv3d(torch::nn::Conv3dOptions(32, 16, {3, 3, 3}).padding({1, 1, 1})),
+        torch::nn::Conv3d(torch::nn::Conv3dOptions(32, 16, {5, 3, 3}).padding({2, 1, 1})),
         torch::nn::ReLU(),
         torch::nn::BatchNorm3d(16),
 
-        torch::nn::Conv3d(torch::nn::Conv3dOptions(16, 8, {3, 3, 3}).padding({1, 1, 1})),
+        torch::nn::Conv3d(torch::nn::Conv3dOptions(16, 8, {5, 3, 3}).padding({2, 1, 1})),
         torch::nn::ReLU(),
         torch::nn::BatchNorm3d(8),
 
         // Change to output 2 channels - 1 for mean and 1 for std_dev
-        torch::nn::Conv3d(torch::nn::Conv3dOptions(8, 2, {3, 3, 3}).padding({1, 1, 1}))
+        torch::nn::Conv3d(torch::nn::Conv3dOptions(8, 2, {5, 3, 3}).padding({2, 1, 1}))
       );
 
     // Rest of initialization remains the same
@@ -65,7 +65,8 @@ std::tuple<torch::Tensor, torch::Tensor> NeuralNetwork::forward(torch::Tensor x)
   auto std_dev = output.slice(1, 1, 2);  // Second channel: std deviation
 
   // Apply activations
-  std_dev = torch::nn::functional::softplus(std_dev);
+  std_dev = torch::nn::functional::relu(std_dev);
+  mean = torch::nn::functional::relu(mean);
 
   // Reshape to incorporate time dimension (assuming time is dimension 2)
   // Each action gets its own distribution parameters across time steps
@@ -75,6 +76,8 @@ std::tuple<torch::Tensor, torch::Tensor> NeuralNetwork::forward(torch::Tensor x)
   // Reshape to combine spatial dimensions and keep time separate
   mean = mean.flatten(2);       // Now [batch, time, spatial_features]
   std_dev = std_dev.flatten(2); // Now [batch, time, spatial_features]
+
+  // std::cout << mean.sizes() << " | " << std_dev.sizes() << std::endl;
 
   // If you need to ensure exactly 5 time steps
   if (mean.size(1) != 5) {

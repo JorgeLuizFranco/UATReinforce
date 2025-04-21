@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
     fmt::print(tfile.get(), "TransactionTime,From,To,X,Y,Z,Time,Value\n");
 
   Airspace2d space{opts.dimensions};
+  auto space_slots = static_cast<size_t>(opts.dimensions[0]) * static_cast<size_t>(opts.dimensions[1]);
 
   auto factory = [&, id = uint_t{0}](uint_t t, int seed) mutable -> std::vector<any_agent> {
     if (t >= opts.max_time)
@@ -80,14 +81,11 @@ int main(int argc, char *argv[])
     result.reserve(opts.n_agents + (t == 0 ? 1 : 0));
 
     if (t == 0 and not opts.dummy)
-      result.push_back(Smart(space, 42, 225, 225));
+      result.push_back(Smart(space, 42, space_slots, space_slots));
 
     for ([[maybe_unused]] const auto _ : cool::indices(opts.n_agents)){
-      // fmt::print("Factory: Creating agent {} at time {}\n", id, t);
       result.push_back(Naive(id++, space, rng(), afile.get(), pfile.get()));
     }
-
-    // fmt::print("Factory: Returning {} agents at time {}\n", result.size(), t);
 
     return result;
   };
@@ -110,7 +108,7 @@ int main(int argc, char *argv[])
     } : std::function<void(trade_info_t<Slot2d>)>(),
     .simulation_callback = [&](uint_t iteration, const agents_private_status_t& status,
                              permit_private_status_fn) -> void {
-      fmt::print(stderr, "Iteration: {} | Active Agents: {}\n", iteration, status.active_count());
+      // fmt::print(stdout, "{},{}\n", iteration, status.active_count());
     },
     .seed = opts.seed < 0 ? std::random_device{}() : opts.seed,
   });
