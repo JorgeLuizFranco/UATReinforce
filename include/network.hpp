@@ -18,4 +18,6 @@ private:
 public:
     NeuralNetwork(int stateSize, int actionSize, int time_steps, int input_channels);
     std::tuple<torch::Tensor, torch::Tensor> forward(torch::Tensor x);
+    void save_model(const std::string& filename);
+    void load_model(const std::string& filename);
 };
