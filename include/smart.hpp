@@ -40,8 +40,8 @@ private:
   std::unordered_set<uat::permit<Slot2d>> keep_, onsale_;
   Airspace2d space;
 
-  torch::Device device;  // Simple initialization, OK in header
-  std::shared_ptr<NeuralNetwork> qNetwork; // Default nullptr, OK in header
+  torch::Device device;
+  std::shared_ptr<NeuralNetwork> qNetwork;
   std::unique_ptr<torch::optim::Adam> optimizer;
 
   torch::Tensor compute_returns();
@@ -49,6 +49,9 @@ private:
   std::vector<float> calculate_dist(uint_t time, uat::permit_public_status_fn status);
   void clean_states(uint_t t);
   void back_propagation();
+
+  bool can_finish_mission(uint_t curr_time, uat::permit_public_status_fn status);
+  std::vector<float> stack_states(const std::vector<const std::vector<float>*>& states);
 
   // Neural network params
   float learning_rate;
@@ -60,15 +63,19 @@ private:
   int x;
   int y;
 
+  // Reward function parameters
   float faturamento_bruto;
-
-  std::vector<float> curr_state;
-  std::vector<float> old_state;
   std::vector<float> rewards;
   std::vector<torch::Tensor> log_probs;
 
+  // Time controlling variables
+  int episode_counter = 0;
+  int time_steps = 5;
   uat::uint_t curr_time;
-  // std::unique_ptr<FILE, void (*)(FILE *)> afile;
+
+  // Agent states
+  std::vector<float> curr_state;
+  std::vector<float> old_state;
 };
 
 static_assert(uat::agent_compatible<Smart>);
