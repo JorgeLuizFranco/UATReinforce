@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
 
   struct
   {
-    uint_t max_time = 100000;
+    uint_t max_time = 10000000;
     uint_t n_agents = 10;
     std::array<uint_t, 2> dimensions = {15, 15};
     int seed = -1;
@@ -106,10 +106,6 @@ int main(int argc, char *argv[])
                    trade.location.pos[0], trade.location.pos[1], trade.location.pos[2],
                    trade.time, trade.value);
     } : std::function<void(trade_info_t<Slot2d>)>(),
-    .simulation_callback = [&](uint_t iteration, const agents_private_status_t& status,
-                             permit_private_status_fn) -> void {
-      // fmt::print(stdout, "{},{}\n", iteration, status.active_count());
-    },
     .seed = opts.seed < 0 ? std::random_device{}() : opts.seed,
   });
 }
